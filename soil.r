@@ -95,8 +95,50 @@ test_set$h_soil_water_stat <- as.factor(test_set$h_soil_water_stat)
 y_Svm_test_pred <- predict(svmClassifier,newdata = test_set[,c("labm_code","labr_value")])
 y_Svm_train_pred <- predict(svmClassifier,newdata = train_set[,c("labm_code","labr_value")])
 
-cm_SVM1 = table(y_Svm_test_pred,test_set[,c("h_soil_water_stat")])
-cm_SVM2 = table(train_set[,c("h_soil_water_stat")],y_Svm_train_pred)
+cm_SVMTest= table(y_Svm_test_pred,test_set[,c("h_soil_water_stat")])
+cm_SVMTrain = table(train_set[,c("h_soil_water_stat")],y_Svm_train_pred)
+
+#compute the score
+cm_SVMTestScore <- (sum(diag(cm_SVMTest)))/sum(cm_SVMTest)
+cm_SVMTrainScore <-  (sum(diag(cm_SVMTrain)))/sum(cm_SVMTrain)
+#randomForest Classifier
+RfClassifier = randomForest(h_soil_water_stat ~ .,data = train_set,ntree = 10,proximity = T)
+
+rfTable <- table(predict(RfClassifier),train_set$h_soil_water_stat)
+print(RfClassifier)
+plot(RfClassifier)
+
+#Classification with CART model
+cartFit <- rpart(h_soil_water_stat ~ .,data = train_set,control = rpart.control(cp = 0.0001))
+#get cp value
+printcp(cartFit)
+#we can prune data with the CP value that contains the lowest error.
+fit.pruned = prune(cartFit, cp = 0.00012488)
+cartPrediction <- predict(fit.pruned, test_set, type = "class")
+data.frame(test_set,cartPrediction)
+confusionMatrix(test_set$h_soil_water_stat,cartPrediction)
+
+#classification with KNN model
+#knnClassifer <- knn(train_set,test_set)
+
+
+#NaiveBayes classification
+# The formula is traditional Y~X1+X2+бн+Xn
+# The data is typically a dataframe of numeric or factor variables.
+# laplace provides a smoothing effect (as discussed below)
+# subset lets you use only a selection subset of your data based on some boolean filter
+# na.action lets you determine what to do when you hit a missing value in your dataset.
+nbClassifier <- naiveBayes(h_soil_water_stat ~ .,data = train_set,laplace=1)
+nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
+nbTableTest <- table(nbTestPrediction,test_set$h_soil_water_stat)
+nbtestTable <- (sum(diag(nbTableTest)))/sum(nbTableTest)
+
+nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
+nbTableTrain <- table(nbTrainPrediction,train_set$h_soil_water_stat)
+nbtrainTable <- (sum(diag(nbTableTrain)))/sum(nbTableTest)
+
+#neuro network
+
 
 #randomForest Classifier
 RfClassifier = randomForest(h_soil_water_stat ~ .,data = train_set,ntree = 10,proximity = T)
