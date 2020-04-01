@@ -21,10 +21,13 @@ library(rattle)
 #load the soil data
 soil <- read.csv(file = "hr_lr_labm.csv")
 
+#for knn classification
+library(class)
+
 #reduce the amount to 10000
-soil <- head(soil,n=1000L)
+soil <- head(soil,n=10000L)
 labmCode = soil$labm_code
-  
+
 #factorize the soil
 labmNum <- factor(c(labmCode))
 
@@ -72,11 +75,18 @@ test_set = subset(validsoilSample, split ==FALSE)
 
 #svm classifier
 svmClassifier = svm(formula = h_soil_water_stat ~ .,
-                 data = train_set,
-                 kernel = 'radial',
-                 cost = 0.1,
-                 gamma = 2)
+                    data = train_set,
+                    type="C-classification",
+                    kernel = 'radial',
+                    cost = 10,
+                    gamma = 0.01)
 
+tuned <- tune.svm(h_soil_water_stat ~.,
+                  data = train_set,
+                  gamma = 10^(-1:-3), cost = 10^(1:3), 
+                  tunecontrol = tune.control(cross = 10))
+
+summary(tuned)
 train_set$h_soil_water_stat <- as.character(train_set$h_soil_water_stat)
 train_set$h_soil_water_stat <- as.factor(train_set$h_soil_water_stat)
 test_set$h_soil_water_stat <- as.character(test_set$h_soil_water_stat)
@@ -85,7 +95,7 @@ test_set$h_soil_water_stat <- as.factor(test_set$h_soil_water_stat)
 y_Svm_test_pred <- predict(svmClassifier,newdata = test_set[,c("labm_code","labr_value")])
 y_Svm_train_pred <- predict(svmClassifier,newdata = train_set[,c("labm_code","labr_value")])
 
-cm_SVM1 = table(test_set[,c("h_soil_water_stat")],y_Svm_test_pred)
+cm_SVM1 = table(y_Svm_test_pred,test_set[,c("h_soil_water_stat")])
 cm_SVM2 = table(train_set[,c("h_soil_water_stat")],y_Svm_train_pred)
 
 #randomForest Classifier
@@ -96,9 +106,14 @@ print(RfClassifier)
 plot(RfClassifier)
 
 #Classification with CART model
-cartFit <- rpart(h_soil_water_stat ~ .,method = "class",data = train_set,minsplit=3,minbucket = 1)
-fancyRpartPlot(cartFit, caption = NULL)
-print(cartFit)
-cartPrediction <- predict(cartFit,test_set)
-# confusionMatrix(test_set$h_soil_water_stat, cartPrediction)
+cartFit <- rpart(h_soil_water_stat ~ .,data = train_set,control = rpart.control(cp = 0.0001))
+#get cp value
+printcp(cartFit)
+#we can prune data with the CP value that contains the lowest error.
+fit.pruned = prune(cartFit, cp = 0.00012488)
+cartPrediction <- predict(fit.pruned, test_set, type = "class")
+data.frame(test_set,cartPrediction)
+confusionMatrix(test_set$h_soil_water_stat,cartPrediction)
 
+#classification with KNN model
+#knnClassifer <- knn(train_set,test_set)
