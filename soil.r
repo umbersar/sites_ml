@@ -138,24 +138,3 @@ nbTableTrain <- table(nbTrainPrediction,train_set$h_soil_water_stat)
 nbtrainTable <- (sum(diag(nbTableTrain)))/sum(nbTableTest)
 
 #neuro network
-
-
-#randomForest Classifier
-RfClassifier = randomForest(h_soil_water_stat ~ .,data = train_set,ntree = 10,proximity = T)
-
-rfTable <- table(predict(RfClassifier),train_set$h_soil_water_stat)
-print(RfClassifier)
-plot(RfClassifier)
-
-#Classification with CART model
-cartFit <- rpart(h_soil_water_stat ~ .,data = train_set,control = rpart.control(cp = 0.0001))
-#get cp value
-printcp(cartFit)
-#we can prune data with the CP value that contains the lowest error.
-fit.pruned = prune(cartFit, cp = 0.00012488)
-cartPrediction <- predict(fit.pruned, test_set, type = "class")
-data.frame(test_set,cartPrediction)
-confusionMatrix(test_set$h_soil_water_stat,cartPrediction)
-
-#classification with KNN model
-#knnClassifer <- knn(train_set,test_set)
