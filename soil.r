@@ -1,6 +1,11 @@
 
 setwd("C:/Users/horat/Desktop/CSIROIntership/soilCode")
 
+
+
+#create pivot table 
+library(reshape)
+
 #data partition seperate trainset and testset
 library (caTools)
 
@@ -27,31 +32,12 @@ library(neuralnet)
 #reduce the amount to 10000
 soil <- head(soil,n=1000L)
 rSoil <- nrow(soil)
-
-
-
-#eliminate duplicate row
-Predata <- soil[1:7]
-Predata <- Predata[!duplicated(Predata[1:7]),]
-rPre <- nrow(Predata)
-
-featurerow <- soil$labm_code
-featurerow <- featurerow[!duplicated(featurerow)]
-featureTable <- data.frame(matrix(ncol=length(featurerow),nrow=rPre, dimnames=list(NULL, featurerow)))
-
-Predata <- cbind(Predata,featureTable)
-
-for (i in (1:rSoil)){
-  for (j in (1:rPre)){
-    if(identical(soil[1:7][i,],Predata[1:7][j,])){
-      labcode = soil["labm_code"][i,]
-      labvalue = soil["labr_value"][i,]
-      Predata[labcode][j,] = labvalue
-    }
-  }
-}
-  
-
+options(digits=9)
+soil['labr_value'] = as.character(unlist(soil['labr_value']))
+#extract three column labm_code labr_value h_texture
+# ExtractSoil <- soil[c(3,10,11)]
+featureTable <- cast(soil, ﻿agency_code + proj_code + h_texture +  s_id + o_id +h_no ~ labm_code,value = "labr_value",function(x){(mean(as.numeric(x)))
+})
 #combine two dataframes
 #soil <- cbind(soil,featureTable)
 
