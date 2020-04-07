@@ -1,7 +1,7 @@
 
 setwd("C:/Users/horat/Desktop/CSIROIntership/soilCode")
 
-
+library(dplyr)
 
 #create pivot table 
 library(reshape)
@@ -21,6 +21,8 @@ library(rpart)
 library(rpart.plot)
 library(rattle)
 
+#xgboost
+library(xgboost)
 #load the soil data
 soil <- read.csv(file = "hr_lr_labm.csv")
 
@@ -29,148 +31,263 @@ library(class)
 
 #install neuralnetwork
 library(neuralnet)
+
+library(adabag)
 #reduce the amount to 10000
 soil <- head(soil,n=1000L)
 rSoil <- nrow(soil)
 options(digits=9)
 soil['labr_value'] = as.character(unlist(soil['labr_value']))
+
 #extract three column labm_code labr_value h_texture
-# ExtractSoil <- soil[c(3,10,11)]
-featureTable <- cast(soil, ï»¿agency_code + proj_code + h_texture +  s_id + o_id +h_no ~ labm_code,value = "labr_value",function(x){(mean(as.numeric(x)))
+featureSoilTable <- cast(soil, ï»¿agency_code + proj_code + h_texture +  s_id + o_id + h_no + samp_no + labr_no ~ labm_code,value = "labr_value",function(x){(mean(as.numeric(x)))
 })
-#combine two dataframes
-#soil <- cbind(soil,featureTable)
+
+#drop some of useless columns
+featureSoilTable <- select (featureSoilTable,-c(ï»¿agency_code,proj_code,s_id,o_id,h_no))
+print(featureSoilTable)
+
+#change the NULL to na
+featureSoilTable['h_texture'][featureSoilTable['h_texture'] == "NULL"] <- NA
+
+#add appendix to colname:
+colnames(featureSoilTable) <- paste("Str",colnames(featureSoilTable),sep = "_")
+
+#get the null value row
+naValuerow <- which(is.na(featureSoilTable$Str_h_texture))
+
+validsoilTexture <- featureSoilTable[-naValuerow,]
+ 
+invalidsoilTexture <- featureSoilTable[naValuerow,]
+
+# convert String to factor...
+validsoilTexture$Str_h_texture <- factor(validsoilTexture$Str_h_texture)
+validsoilTexture$Str_h_texture <- as.factor(validsoilTexture$Str_h_texture)
+
+#set random seed
+set.seed(122)
+
+#give the valid sample
+split = sample.split(validsoilTexture$Str_h_texture,SplitRatio = 0.75)
+train_set = subset(validsoilTexture, split == TRUE)
+test_set = subset(validsoilTexture, split == FALSE)
+
+#change the null value to 0
+train_set[,-1][is.na(train_set[,-1])] = 0
+test_set[,-1][is.na(test_set[,-1])] = 0
+
+#svm classifier
+svmClassifier = svm(formula = Str_h_texture ~ .,
+                    data = train_set,
+                    type="C-classification",
+                    kernel = 'radial',
+                    cost = 10,
+                    gamma = 0.001,
+                    scale = FALSE)
+
+print(svmClassifier)
+summary(svmClassifier)
 
 
-#factorize the soil
-# labmNum <- factor(c(labmCode))
-# 
-# soil$labm_code <- as.numeric(labmNum)
-# 
-# #change labr_value to numeric
-# soil$labr_value <- as.numeric(soil$labr_value)
-# 
-# #load the "h_soil_water_stat" non-null column
-# #fill in the NULL value as NA value
-# soil$h_soil_water_stat[soil$h_soil_water_stat == "NULL"] = NA
-# 
-# #get the null value row
-# naValuerow <- which(is.na(soil$h_soil_water_stat))
-# 
-# validsoilSample <- soil[-naValuerow,]
-# 
-# invalidsoilSample <- soil[naValuerow,]
-# 
-# soil_label = validsoilSample$h_soil_water_stat
-# soil_label <- factor(c(soil_label))
-# validsoilSample$h_soil_water_stat <- as.numeric(soil_label)
-# 
-# #set random seed
-# set.seed(122)
-# 
-# #give the valid sample
-# validsoilSample <- validsoilSample[,c("h_soil_water_stat","labm_code","labr_value")]
-# 
-# 
-# split = sample.split(validsoilSample$h_soil_water_stat,SplitRatio = 0.75)
-# train_set = subset(validsoilSample, split == TRUE)
-# test_set = subset(validsoilSample, split ==FALSE)
-# 
-# # x <- subset(validsoilSample, select=-h_soil_water_stat)
-# # y <- validsoilSample$h_soil_water_stat
-# 
-# #to check if which value is the best
-# # svm_tune <- tune(svm, train.x=x, train.y=y, 
-# #                  kernel="radial", ranges=list(cost=10^(-1:2), gamma=c(.5,1,2)))
-# # 
-# # print(svm_tune)
-# 
-# 
-# #svm classifier
-# svmClassifier = svm(formula = h_soil_water_stat ~ .,
-#                     data = train_set,
-#                     type="C-classification",
-#                     kernel = 'radial',
-#                     cost = 10,
-#                     gamma = 0.01)
-# 
-# tuned <- tune.svm(h_soil_water_stat ~.,
+# tuned to find out the best cost and gamma
+# tuned <- tune.svm(Str_h_texture ~.,
 #                   data = train_set,
-#                   gamma = 10^(-1:-3), cost = 10^(1:3), 
+#                   gamma = 10^(-3:3), cost = 10^(-3:3),scale = FALSE,
+#                   na.action = na.omit,
 #                   tunecontrol = tune.control(cross = 10))
 # 
 # summary(tuned)
-# train_set$h_soil_water_stat <- as.character(train_set$h_soil_water_stat)
-# train_set$h_soil_water_stat <- as.factor(train_set$h_soil_water_stat)
-# test_set$h_soil_water_stat <- as.character(test_set$h_soil_water_stat)
-# test_set$h_soil_water_stat <- as.factor(test_set$h_soil_water_stat)
-# # Predicting the Test set results 
-# y_Svm_test_pred <- predict(svmClassifier,newdata = test_set[,c("labm_code","labr_value")])
-# y_Svm_train_pred <- predict(svmClassifier,newdata = train_set[,c("labm_code","labr_value")])
-# 
-# cm_SVMTest= table(y_Svm_test_pred,test_set[,c("h_soil_water_stat")])
-# cm_SVMTrain = table(train_set[,c("h_soil_water_stat")],y_Svm_train_pred)
-# 
-# #compute the score
-# cm_SVMTestScore <- (sum(diag(cm_SVMTest)))/sum(cm_SVMTest)
-# cm_SVMTrainScore <-  (sum(diag(cm_SVMTrain)))/sum(cm_SVMTrain)
-# #randomForest Classifier
-# RfClassifier = randomForest(h_soil_water_stat ~ .,data = train_set,ntree = 10,proximity = T)
-# 
-# rfTable <- table(predict(RfClassifier),train_set$h_soil_water_stat)
-# print(RfClassifier)
-# plot(RfClassifier)
-# 
-# #Classification with CART model
-# cartFit <- rpart(h_soil_water_stat ~ .,data = train_set,control = rpart.control(cp = 0.0001))
-# #get cp value
-# printcp(cartFit)
-# #we can prune data with the CP value that contains the lowest error.
-# fit.pruned = prune(cartFit, cp = 0.00012488)
-# cartPrediction <- predict(fit.pruned, test_set, type = "class")
-# data.frame(test_set,cartPrediction)
-# confusionMatrix(test_set$h_soil_water_stat,cartPrediction)
-# 
-# #classification with KNN model
-# #knnClassifer <- knn(train_set,test_set)
-# 
-# 
-# #NaiveBayes classification
-# # The formula is traditional Y~X1+X2+¡­+Xn
-# # The data is typically a dataframe of numeric or factor variables.
-# # laplace provides a smoothing effect (as discussed below)
-# # subset lets you use only a selection subset of your data based on some boolean filter
-# # na.action lets you determine what to do when you hit a missing value in your dataset.
-# nbClassifier <- naiveBayes(h_soil_water_stat ~ .,data = train_set,laplace=1)
-# nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
-# nbTableTest <- table(nbTestPrediction,test_set$h_soil_water_stat)
-# nbtestTable <- (sum(diag(nbTableTest)))/sum(nbTableTest)
-# 
-# nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
-# nbTableTrain <- table(nbTrainPrediction,train_set$h_soil_water_stat)
-# nbtrainTable <- (sum(diag(nbTableTrain)))/sum(nbTableTest)
-# 
-# #neuro network
-# #Min-Max normalization
-# Nortrain <- train_set
-# normalize <- function(x) {
-#   return ((x - min(x)) / (max(x) - min(x)))
-# }
-# Nortrain$h_soil_water_stat <- normalize(as.numeric(train_set$h_soil_water_stat))
-# Nortrain$labm_code <- normalize(as.numeric(train_set$labm_code))
-# Nortrain$labr_value <- normalize((as.numeric(train_set$labr_value)))
-# 
-# Nortest <- test_set
-# Nortest$h_soil_water_stat <- normalize(as.numeric(test_set$h_soil_water_stat))
-# Nortest$labm_code <- normalize(as.numeric(test_set$labm_code))
-# Nortest$labr_value <- normalize((as.numeric(test_set$labr_value)))
-# 
-# set.seed(222)
-# nnClassifier <- neuralnet(h_soil_water_stat ~ .,data=Nortrain, hidden=4,linear.output = F)
-# print(nnClassifier$result.matrix)
-# plot(nnClassifier)
-# 
-# #prediction
-# output<- compute(nnClassifier,Nortrain[,-1])
-# 
-# #confusion Matrix & Misclassifcation Error - training data
+
+# Predicting the Test set results 
+y_Svm_test_pred <- predict(svmClassifier,newdata = test_set[-1])
+y_Svm_train_pred <- predict(svmClassifier,newdata = train_set[-1])
+
+cm_SVMTest= table(test_set[,c("Str_h_texture")],y_Svm_test_pred)
+cm_SVMTrain = table(train_set[,c("Str_h_texture")],y_Svm_train_pred)
+
+#compute the score
+#NOTICE: Although trainscore is good but testscore seems not very good.
+cm_SVMTestScore <- (sum(diag(cm_SVMTest)))/sum(cm_SVMTest)
+cm_SVMTrainScore <-  (sum(diag(cm_SVMTrain)))/sum(cm_SVMTrain)
+
+
+#randomForest Classifier,error rate = 72.6%
+RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,ntree = 500,proximity = T,mtry = 10)
+
+rfTable <- table(predict(RfClassifier),train_set$Str_h_texture)
+
+print(RfClassifier)
+plot(RfClassifier)
+
+#In randomeForest() have tuneRF() for searching best optimal mtry values given for your data.
+#We will depend on OOBError to define the most accurate mtry for our model which have the least OOBEError.
+# x <- subset(train_set,select = -Str_h_texture)
+# y <- train_set$Str_h_texture
+# bestMtry <- tuneRF(x,y, stepFactor = 1.15, improve = 1e-5, ntree = 1000)
+
+#Classification with CART model
+cartFit <- rpart(Str_h_texture ~ .,data = train_set,control = rpart.control(cp = 0.0001))
+#get cp value
+printcp(cartFit)
+#we can prune data with the CP value that contains the lowest error.
+
+fit.pruned = prune(cartFit, cp = 0.007537688)
+
+cartPrediction <- predict(fit.pruned, test_set, type = "class")
+
+data.frame(test_set,cartPrediction)
+
+confusionMatrix(test_set$Str_h_texture,cartPrediction)
+
+#classification with KNN model
+
+#preprocessing the data
+normalize <- function(x){
+  return ((x-min(x))/(max(x)-min(x)))
+}
+#normalize the training value
+train_set.new<- as.data.frame(lapply(train_set[,-c(1)],normalize))
+
+#replace null value with 0
+train_set.new[is.na(train_set.new)] <- 0
+
+test_set.new <- as.data.frame(lapply(test_set[,-c(1)],normalize))
+
+test_set.new[is.na(test_set.new)] <- 0
+
+ts <- train_set
+ts$Str_h_texture <- as.numeric(ts$Str_h_texture)
+train_set.norm <- as.data.frame(lapply(ts[,],normalize))
+train_set.norm[is.na(train_set.norm)] <- 0
+
+te <- test_set
+te$Str_h_texture <- as.numeric(te$Str_h_texture)
+test_set.norm <- as.data.frame(lapply(te[,],normalize))
+test_set.norm[is.na(test_set.norm)] <- 0
+
+#using knn
+knnClassifer <- knn(train_set.new ,test_set.new,cl = train_set$Str_h_texture,k=9)
+
+Kn_test <- table(test_set$Str_h_texture,knnClassifer)
+
+Kn_TestScore = (sum(diag(Kn_test)))/sum(Kn_test)
+
+cm_KnTestScore <- confusionMatrix(test_set$Str_h_texture,knnClassifer)
+
+#Full Data set can be used for cross validation
+knn.cross <- tune.knn(x = train_set.new, y = train_set$Str_h_texture, k = 2:20,tunecontrol=tune.control(sampling = "cross"), cross=10)
+#Summarize the resampling results set
+summary(knn.cross)
+
+
+#NaiveBayes classification
+# The formula is traditional Y~X1+X2+¡­+Xn
+# The data is typically a dataframe of numeric or factor variables.
+# laplace provides a smoothing effect (as discussed below)
+# subset lets you use only a selection subset of your data based on some boolean filter
+# na.action lets you determine what to do when you hit a missing value in your dataset.
+
+nbClassifier <- naiveBayes(Str_h_texture ~ .,data = train_set,laplace=2)
+nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
+nbTableTest <- table(nbTestPrediction,test_set$Str_h_texture)
+confusionMatrix(nbTableTest)
+
+nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
+nbTrainTable <- table(nbTrainPrediction,train_set$Str_h_texture)
+confusionMatrix(nbTrainTable )
+
+#neuro network
+set.seed(222)
+
+#We can us neuralnet() to train a NN model. Also, the train() function from caret can help us tune parameters.
+#We can plot the result to see which set of parameters is fit our data the best.
+
+# Model <- train(Str_h_texture ~ .,     
+#                data=train_set.norm,           
+#                method="neuralnet",   
+#                ### Parameters for layers
+#                tuneGrid = expand.grid(.layer1=c(1:4), .layer2=c(0:4), .layer3=c(0)),               
+#                ### Parameters for optmization
+#                learningrate = 0.01,  
+#                threshold = 0.01,     
+#                stepmax = 50000         
+# )
+
+nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set.norm, likelihood = TRUE, 
+                          hidden = c(1,2),linear.output = F)
+print(nnClassifier$result.matrix)
+plot(nnClassifier)
+
+#prediction
+output<- compute(nnClassifier,train_set.norm[,-1])
+p1 <- output$net.result
+
+#return back to string value
+
+#get what predict value belongs to which label.
+mulPred <- function(x){
+  ma =  max(ts$Str_h_texture)
+  mi =  min(ts$Str_h_texture)
+  dif = ma - mi
+  return (round(x * dif,digits = 0))
+}
+
+mp1 <- mulPred(p1)
+
+l_ts = ts$Str_h_texture[!duplicated(ts$Str_h_texture)]
+l_train_set = train_set$Str_h_texture[!duplicated(train_set$Str_h_texture)]
+
+l_ts <- cbind(l_ts,l_train_set)
+cvtFactorNum <- function(x){
+  if (x>=1 & x<= nrow(l_ts)){
+    return (l_train_set[x])
+  }else{
+    if (x<1){
+      return (l_train_set[1])
+    }else{
+      return (l_train_set[nrow(l_ts)])
+    }
+  }
+  
+}
+
+nnpred <- as.factor(unlist(lapply(mp1,cvtFactorNum)))
+#confusion Matrix & Misclassifcation Error - training data
+nnConfusionMatrix <-  confusionMatrix(train_set$Str_h_texture,nnpred)
+
+#Classification with the Adabag Boosting in R
+adaClassifer <- boosting(Str_h_texture ~ .,data = train_set,boos = T,mfinal = 10)
+adapred  <- predict(adaClassifer,test_set)
+adaConfusionM <- adapred$confusion
+adaError <- adapred$error
+
+#Classification with xgbboost
+xgb.train = xgb.DMatrix(data = as.matrix(ts),label =as.matrix(ts$Str_h_texture)-1)
+xgb.test = xgb.DMatrix(data = as.matrix(te),label = as.matrix(te$Str_h_texture)-1)
+
+num_class = length(levels(validsoilTexture$Str_h_texture))
+
+params = list(
+  booster="gbtree",
+  eta=0.001,
+  max_depth=5,
+  gamma=3,
+  subsample=0.75,
+  colsample_bytree=1,
+  objective="multi:softprob",
+  eval_metric="mlogloss",
+  num_class=num_class
+)
+
+# Train the XGBoost classifer
+xgb.fit=xgb.train(
+  params=params,
+  data=xgb.train,
+  nrounds=10000,
+  nthreads=1,
+  early_stopping_rounds=10,
+  watchlist=list(val1=xgb.train,val2=xgb.test),
+  verbose=0
+)
+
+xgb.fit
