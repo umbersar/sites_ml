@@ -25,3 +25,4 @@ featureSoilTable <- dcast(soil, ﻿agency_code + proj_code + h_texture +  s_id +
 featureSoilTable <- select (featureSoilTable,-c(﻿agency_code,proj_code,s_id,o_id,h_no))
 
 write.csv(featureSoilTable,"featureTable.csv")
+

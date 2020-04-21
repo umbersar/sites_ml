@@ -14,9 +14,7 @@ library(caret)
 
 #svm library due to limitation of iterations change the library
 library(e1071)
-
-#another svm library
-library(liquidSVM)
+library(LiblineaR)
 
 #random forest
 library(randomForest)
@@ -45,6 +43,9 @@ normalize <- function(x){
 }
 
 featureSoilTable <- read.csv(file = "featureTable.csv")
+#drop some of useless columns
+featureSoilTable <- select (featureSoilTable,-c(X))
+
 #change the NULL to na
 featureSoilTable['h_texture'][featureSoilTable['h_texture'] == "NULL"] <- NA
 
@@ -68,54 +69,50 @@ validsoilTexture[is.na(validsoilTexture)] = 0
 
 ncol <- ncol(validsoilTexture)
 
-#a pca method for 
-pca <- PCA(validsoilTexture[2:108])
-summary(pca)
 #set random seed
 set.seed(122)
 
 #give the valid sample
 split = sample.split(validsoilTexture$Str_h_texture,SplitRatio = 0.7)
+
 train_set = subset(validsoilTexture, split == TRUE)
 test_set = subset(validsoilTexture, split == FALSE)
+  
+#set all value to number
+train_set.num = as.data.frame(sapply(train_set,as.factor))
+train_set.num = as.data.frame(sapply(train_set,as.numeric))
 
-# tuned to find out the best cost and gamma
-tuned <- tune.svm(Str_h_texture ~.,
-                  data = train_set,
-                  gamma = 10^(-3:3), cost = 10^(-3:3),scale = FALSE,
-                  na.action = na.omit,
-                  tunecontrol = tune.control(cross = 10))
+test_set.num = as.data.frame(sapply(test_set, as.factor))
+test_set.num = as.data.frame(sapply(test_set, as.numeric))
 
-summary(tuned)
+# Find the best model with the best cost parameter via 10-fold cross-validations
+tryTypes=c(0:7)
+tryCosts=c(1000,1,0.001)
+bestCost=NA
+bestAcc=0
+bestType=NA
+
+for(ty in tryTypes){
+  for(co in tryCosts){
+    acc=LiblineaR(data=train_set.num[,-1],target=train_set.num[,c("Str_h_texture")],type=ty,cost=co,bias=1,cross=5,verbose=FALSE)
+    cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
+    if(acc>bestAcc){
+      bestCost=co
+      bestAcc=acc
+      bestType=ty
+    }
+  }
+}
+
+# Sparse Logistic Regression
+t=6
 
 #svm classifier
-svmClassifier = svm(formula = Str_h_texture ~ .,
-                    data = train_set,
-                    type="C-classification",
-                    kernel = 'polynomial',
-                    cost = 1000,
-                    gamma = 1000,
-                    scale = FALSE)
+svmClassifier <- LiblineaR(data = train_set.num[,-1],type=t,target = train_set.num[,c("Str_h_texture")])
+svmPredictTest <- predict(svmClassifier,test_set.num[,-1])
+svmPredictTestTable <- table(svmPredict$predictions,test_set.num[,c("Str_h_texture")])
 
-print(svmClassifier)
-summary(svmClassifier)
-
-
-# Predicting the Test set results 
-y_Svm_test_pred <- predict(svmClassifier,newdata = test_set[-1])
-y_Svm_train_pred <- predict(svmClassifier,newdata = train_set[-1])
-
-cm_SVMTest= table(test_set[,c("Str_h_texture")],y_Svm_test_pred)
-cm_SVMTrain = table(train_set[,c("Str_h_texture")],y_Svm_train_pred)
-
-#compute the score
-#NOTICE: Although trainscore is good but testscore seems not very good.
-cm_SVMTestScore <- (sum(diag(cm_SVMTest)))/sum(cm_SVMTest)
-cm_SVMTrainScore <-  (sum(diag(cm_SVMTrain)))/sum(cm_SVMTrain)
-
-#*Another SVM method through liquidSVM
-
-#randomForest Classifier,error rate = 72.6%
+#randomForest Classifier,error rate = 72.6%,random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
 RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,ntree = 500,proximity = T,mtry = 10)
 
 rfTable <- table(predict(RfClassifier),train_set$Str_h_texture)
