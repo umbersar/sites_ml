@@ -5,13 +5,18 @@ library(dplyr)
 
 #create pivot table 
 library(reshape)
+library(data.table)
 
 #data partition seperate trainset and testset
 library (caTools)
 
 library(caret)
-#svm library
+
+#svm library due to limitation of iterations change the library
 library(e1071)
+
+#another svm library
+library(liquidSVM)
 
 #random forest
 library(randomForest)
@@ -23,8 +28,6 @@ library(rattle)
 
 #xgboost
 library(xgboost)
-#load the soil data
-soil <- read.csv(file = "hr_lr_labm.csv")
 
 #for knn classification
 library(class)
@@ -32,26 +35,37 @@ library(class)
 #install neuralnetwork
 library(neuralnet)
 
+#adabag library
 library(adabag)
-#reduce the amount to 10000
-soil <- head(soil,n=1000L)
+
+#load the soil data
+soil <- read.csv(file = "hr_lr_labm.csv")
+#reduce the amount to 5000
 rSoil <- nrow(soil)
-options(digits=9)
-soil['labr_value'] = as.character(unlist(soil['labr_value']))
+
+#normalize the labr_value name
+#preprocessing the data
+normalize <- function(x){
+  return ((x-min(x))/(max(x)-min(x)))
+}
+
+soil$labr_value <- normalize(as.numeric(soil$labr_value))
 
 #extract three column labm_code labr_value h_texture
-featureSoilTable <- cast(soil, ﻿agency_code + proj_code + h_texture +  s_id + o_id + h_no + samp_no + labr_no ~ labm_code,value = "labr_value",function(x){(mean(as.numeric(x)))
-})
+featureSoilTable <- dcast(soil, ﻿agency_code + proj_code + h_texture +  s_id + o_id + h_no + samp_no + labr_no ~ labm_code,value.var = "labr_value")
 
 #drop some of useless columns
 featureSoilTable <- select (featureSoilTable,-c(﻿agency_code,proj_code,s_id,o_id,h_no))
-print(featureSoilTable)
 
+write.csv(featureSoilTable,"featureTable.csv")
+
+read.csv(featureSoilTable,"featureTable.csv")
 #change the NULL to na
 featureSoilTable['h_texture'][featureSoilTable['h_texture'] == "NULL"] <- NA
 
 #add appendix to colname:
 colnames(featureSoilTable) <- paste("Str",colnames(featureSoilTable),sep = "_")
+print(featureSoilTable)
 
 #get the null value row
 naValuerow <- which(is.na(featureSoilTable$Str_h_texture))
@@ -64,39 +78,43 @@ invalidsoilTexture <- featureSoilTable[naValuerow,]
 validsoilTexture$Str_h_texture <- factor(validsoilTexture$Str_h_texture)
 validsoilTexture$Str_h_texture <- as.factor(validsoilTexture$Str_h_texture)
 
+#change null value to 0
+validsoilTexture[is.na(validsoilTexture)] = 0
+
+ncol <- ncol(validsoilTexture)
+
+#a pca method for 
+pca <- PCA(validsoilTexture[2:108])
+summary(pca)
 #set random seed
 set.seed(122)
 
 #give the valid sample
-split = sample.split(validsoilTexture$Str_h_texture,SplitRatio = 0.75)
+split = sample.split(validsoilTexture$Str_h_texture,SplitRatio = 0.7)
 train_set = subset(validsoilTexture, split == TRUE)
 test_set = subset(validsoilTexture, split == FALSE)
 
-#change the null value to 0
-train_set[,-1][is.na(train_set[,-1])] = 0
-test_set[,-1][is.na(test_set[,-1])] = 0
+# tuned to find out the best cost and gamma
+tuned <- tune.svm(Str_h_texture ~.,
+                  data = train_set,
+                  gamma = 10^(-3:3), cost = 10^(-3:3),scale = FALSE,
+                  na.action = na.omit,
+                  tunecontrol = tune.control(cross = 10))
+
+summary(tuned)
 
 #svm classifier
 svmClassifier = svm(formula = Str_h_texture ~ .,
                     data = train_set,
                     type="C-classification",
-                    kernel = 'radial',
-                    cost = 10,
-                    gamma = 0.001,
+                    kernel = 'polynomial',
+                    cost = 1000,
+                    gamma = 1000,
                     scale = FALSE)
 
 print(svmClassifier)
 summary(svmClassifier)
 
-
-# tuned to find out the best cost and gamma
-# tuned <- tune.svm(Str_h_texture ~.,
-#                   data = train_set,
-#                   gamma = 10^(-3:3), cost = 10^(-3:3),scale = FALSE,
-#                   na.action = na.omit,
-#                   tunecontrol = tune.control(cross = 10))
-# 
-# summary(tuned)
 
 # Predicting the Test set results 
 y_Svm_test_pred <- predict(svmClassifier,newdata = test_set[-1])
@@ -110,6 +128,7 @@ cm_SVMTrain = table(train_set[,c("Str_h_texture")],y_Svm_train_pred)
 cm_SVMTestScore <- (sum(diag(cm_SVMTest)))/sum(cm_SVMTest)
 cm_SVMTrainScore <-  (sum(diag(cm_SVMTrain)))/sum(cm_SVMTrain)
 
+#*Another SVM method through liquidSVM
 
 #randomForest Classifier,error rate = 72.6%
 RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,ntree = 500,proximity = T,mtry = 10)
@@ -291,3 +310,4 @@ xgb.fit=xgb.train(
 )
 
 xgb.fit
+
