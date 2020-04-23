@@ -67,6 +67,8 @@ validsoilTexture$Str_h_texture <- as.factor(validsoilTexture$Str_h_texture)
 #change null value to 0
 validsoilTexture[is.na(validsoilTexture)] = 0
 
+#try to Remove columns with zero values from a dataframe
+validsoilTexture <- validsoilTexture[, colSums(validsoilTexture != 0) > 0]
 ncol <- ncol(validsoilTexture)
 
 #set random seed
@@ -85,32 +87,40 @@ train_set.num = as.data.frame(sapply(train_set,as.numeric))
 test_set.num = as.data.frame(sapply(test_set, as.factor))
 test_set.num = as.data.frame(sapply(test_set, as.numeric))
 
+#train_set.scale = scale(train_set.num,center=  TRUE,scale = TRUE)
+# train_set.scale[is.na(train_set.scale)] = 0
+# 
+# test_set.scale = scale(test_set.num,attr(train_set.scale,"scaled:center"),attr(train_set.scale,"scaled:scale"))
+# test_set.scale[is.na(test_set.scale)] = 0
+# test_set.scale[is.infinite(test_set.scale)] = 0
+
+# test score around 63%
+
 # Find the best model with the best cost parameter via 10-fold cross-validations
 tryTypes=c(0:7)
 tryCosts=c(1000,1,0.001)
 bestCost=NA
-bestAcc=0
+bestAcc=0.6290723
 bestType=NA
 
-for(ty in tryTypes){
-  for(co in tryCosts){
-    acc=LiblineaR(data=train_set.num[,-1],target=train_set.num[,c("Str_h_texture")],type=ty,cost=co,bias=1,cross=5,verbose=FALSE)
-    cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
-    if(acc>bestAcc){
-      bestCost=co
-      bestAcc=acc
-      bestType=ty
-    }
-  }
-}
+# for(ty in tryTypes){
 
-# Sparse Logistic Regression
-t=6
+  # for(co in tryCosts){
+  #   acc=LiblineaR(data=train_set.scale[,-1],target=train_set.scale[,c("Str_h_texture")],type=7,cost=co,bias=1,cross=5,verbose=FALSE)
+  #   cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
+  #   if(acc>bestAcc){
+  #     bestCost=co
+  #     bestAcc=acc
+  #     # bestType=ty
+  #   }
+  # }
+
+# }
 
 #svm classifier
-svmClassifier <- LiblineaR(data = train_set.num[,-1],type=t,target = train_set.num[,c("Str_h_texture")])
-svmPredictTest <- predict(svmClassifier,test_set.num[,-1])
-svmPredictTestTable <- table(svmPredict$predictions,test_set.num[,c("Str_h_texture")])
+svmClassifier <- LiblineaR(data = train_set.num[,-1],target = train_set.num[,c("Str_h_texture")],cost = 1000)
+svmPredictTest <- predict(svmClassifier,test_set.num[,-1],proba=TRUE,decisionValues=TRUE)
+svmPredictTestTable <- table(svmPredictTest$predictions,test_set.num[,c("Str_h_texture")])
 
 #randomForest Classifier,error rate = 72.6%,random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
 RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,ntree = 500,proximity = T,mtry = 10)
