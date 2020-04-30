@@ -73,6 +73,8 @@ validsoilTexture <- apply(validsoilTexture, 2, as.factor)
 validsoilTexture <- apply(validsoilTexture, 2, as.numeric)
 validsoilTexture <- as.data.frame(apply(validsoilTexture,2,normalize))
 
+countype <- length(unique(validsoilTexture$Str_h_texture))
+validsoilTexture$Str_h_texture <- floor(validsoilTexture$Str_h_texture * countype)
 ncol <- ncol(validsoilTexture)
 
 #set random seed
@@ -115,6 +117,17 @@ svmClassifier <- LiblineaR(data = train_set[,-1],target = train_set[,c("Str_h_te
 svmPredictTest <- predict(svmClassifier,test_set[,-1],proba=TRUE,decisionValues=TRUE)
 svmPredictTestTable <- table(svmPredictTest$predictions,test_set[,c("Str_h_texture")])
 
+svmcol <- colnames(svmPredictTestTable)
+svmrow <- rownames(svmPredictTestTable)
+
+sum = 0
+for (i in svmcol){
+  if (i %in% svmrow){
+    sum = sum + svmPredictTestTable[i,i]
+  }
+}
+
+svmPredictScore <- sum/sum(svmPredictTestTable)
 #randomForest Classifier,error rate = 72.6%,random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
 # RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,proximity = T,mtry = 10)
 # 
