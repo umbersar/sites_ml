@@ -36,39 +36,43 @@ library(neuralnet)
 #adabag library
 library(adabag)
 
+#Stochastic Gradient Descent (SGD) Method Learning Function
+library(gradDescent)
+library(lightgbm)
+#https://www.kaggle.com/c/amazon-employee-access-challenge/discussion/5128#38925
+
+#matrix library
+library(Matrix)
+
+featureSoilTable <- read.csv(file = "featureTable.csv")
+
 #normalize the labr_value name
 #preprocessing the data
 normalize <- function(x){
   return ((x-min(x))/(max(x)-min(x)))
 }
 
-featureSoilTable <- read.csv(file = "featureTable.csv")
-#drop some of useless columns
-featureSoilTable <- select (featureSoilTable,-c(X))
-
 #change the NULL to na
 featureSoilTable['h_texture'][featureSoilTable['h_texture'] == "NULL"] <- NA
-
 #add appendix to colname:
 colnames(featureSoilTable) <- paste("Str",colnames(featureSoilTable),sep = "_")
 print(featureSoilTable)
 
-#get the null value row
-naValuerow <- which(is.na(featureSoilTable$Str_h_texture))
-
-validsoilTexture <- featureSoilTable[-naValuerow,]
- 
-invalidsoilTexture <- featureSoilTable[naValuerow,]
-
-# convert String to factor...
-validsoilTexture$Str_h_texture <- factor(validsoilTexture$Str_h_texture)
-validsoilTexture$Str_h_texture <- as.factor(validsoilTexture$Str_h_texture)
+#extract valid and invalid soil sample
+validsoilTexture <- featureSoilTable[!is.na(featureSoilTable$Str_h_texture),]
+invalidsoilTexture <- featureSoilTable[is.na(featureSoilTable$Str_h_texture),]
 
 #change null value to 0
 validsoilTexture[is.na(validsoilTexture)] = 0
+#Remove columns with zero values from a dataframe
+validsoilTexture<- validsoilTexture[, colSums(validsoilTexture != 0) > 0]
 
-#try to Remove columns with zero values from a dataframe
-validsoilTexture <- validsoilTexture[, colSums(validsoilTexture != 0) > 0]
+validsoilTexture <- lapply(validsoilTexture,as.factor)
+validsoilTexture <-lapply(validsoilTexture,as.numeric)
+validsoilTexture <- lapply(validsoilTexture,normalize)
+
+validsoilTexture <- as.data.frame(validsoilTexture)
+
 ncol <- ncol(validsoilTexture)
 
 #set random seed
@@ -79,20 +83,9 @@ split = sample.split(validsoilTexture$Str_h_texture,SplitRatio = 0.7)
 
 train_set = subset(validsoilTexture, split == TRUE)
 test_set = subset(validsoilTexture, split == FALSE)
-  
-#set all value to number
-train_set.num = as.data.frame(sapply(train_set,as.factor))
-train_set.num = as.data.frame(sapply(train_set,as.numeric))
 
-test_set.num = as.data.frame(sapply(test_set, as.factor))
-test_set.num = as.data.frame(sapply(test_set, as.numeric))
-
+summary(train_set)
 #train_set.scale = scale(train_set.num,center=  TRUE,scale = TRUE)
-# train_set.scale[is.na(train_set.scale)] = 0
-# 
-# test_set.scale = scale(test_set.num,attr(train_set.scale,"scaled:center"),attr(train_set.scale,"scaled:scale"))
-# test_set.scale[is.na(test_set.scale)] = 0
-# test_set.scale[is.infinite(test_set.scale)] = 0
 
 # test score around 63%
 
@@ -103,32 +96,32 @@ bestCost=NA
 bestAcc=0.6290723
 bestType=NA
 
-# for(ty in tryTypes){
+for(ty in tryTypes){
 
-  # for(co in tryCosts){
-  #   acc=LiblineaR(data=train_set.scale[,-1],target=train_set.scale[,c("Str_h_texture")],type=7,cost=co,bias=1,cross=5,verbose=FALSE)
-  #   cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
-  #   if(acc>bestAcc){
-  #     bestCost=co
-  #     bestAcc=acc
-  #     # bestType=ty
-  #   }
-  # }
+   for(co in tryCosts){
+    acc=LiblineaR(data=train_set.num[,-1],target=train_set.num[,c("Str_h_texture")],type=7,cost=co,bias=1,verbose=FALSE)
+    cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
+    if(acc>bestAcc){
+    bestCost=co
+    bestAcc=acc
+    bestType=ty
+    }
+  }
 
-# }
+}
 
 #svm classifier
-svmClassifier <- LiblineaR(data = train_set.num[,-1],target = train_set.num[,c("Str_h_texture")],cost = 1000)
+svmClassifier <- LiblineaR(data = train_set.num[,-1],target = train_set.num[,c("Str_h_texture")],bias=1,cost = 1000)
 svmPredictTest <- predict(svmClassifier,test_set.num[,-1],proba=TRUE,decisionValues=TRUE)
 svmPredictTestTable <- table(svmPredictTest$predictions,test_set.num[,c("Str_h_texture")])
 
 #randomForest Classifier,error rate = 72.6%,random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
-RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,ntree = 500,proximity = T,mtry = 10)
-
-rfTable <- table(predict(RfClassifier),train_set$Str_h_texture)
-
-print(RfClassifier)
-plot(RfClassifier)
+# RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,proximity = T,mtry = 10)
+# 
+# rfTable <- table(predict(RfClassifier),train_set$Str_h_texture)
+# 
+# print(RfClassifier)
+# plot(RfClassifier)
 
 #In randomeForest() have tuneRF() for searching best optimal mtry values given for your data.
 #We will depend on OOBError to define the most accurate mtry for our model which have the least OOBEError.
@@ -136,7 +129,7 @@ plot(RfClassifier)
 # y <- train_set$Str_h_texture
 # bestMtry <- tuneRF(x,y, stepFactor = 1.15, improve = 1e-5, ntree = 1000)
 
-#Classification with CART model
+#Classification with CART model geneating poor performance
 cartFit <- rpart(Str_h_texture ~ .,data = train_set,control = rpart.control(cp = 0.0001))
 #get cp value
 printcp(cartFit)
@@ -152,32 +145,8 @@ confusionMatrix(test_set$Str_h_texture,cartPrediction)
 
 #classification with KNN model
 
-#preprocessing the data
-normalize <- function(x){
-  return ((x-min(x))/(max(x)-min(x)))
-}
-#normalize the training value
-train_set.new<- as.data.frame(lapply(train_set[,-c(1)],normalize))
-
-#replace null value with 0
-train_set.new[is.na(train_set.new)] <- 0
-
-test_set.new <- as.data.frame(lapply(test_set[,-c(1)],normalize))
-
-test_set.new[is.na(test_set.new)] <- 0
-
-ts <- train_set
-ts$Str_h_texture <- as.numeric(ts$Str_h_texture)
-train_set.norm <- as.data.frame(lapply(ts[,],normalize))
-train_set.norm[is.na(train_set.norm)] <- 0
-
-te <- test_set
-te$Str_h_texture <- as.numeric(te$Str_h_texture)
-test_set.norm <- as.data.frame(lapply(te[,],normalize))
-test_set.norm[is.na(test_set.norm)] <- 0
-
 #using knn
-knnClassifer <- knn(train_set.new ,test_set.new,cl = train_set$Str_h_texture,k=9)
+knnClassifer <- knn(train_set,test_set,cl = train_set$Str_h_texture,k=9)
 
 Kn_test <- table(test_set$Str_h_texture,knnClassifer)
 
@@ -186,7 +155,7 @@ Kn_TestScore = (sum(diag(Kn_test)))/sum(Kn_test)
 cm_KnTestScore <- confusionMatrix(test_set$Str_h_texture,knnClassifer)
 
 #Full Data set can be used for cross validation
-knn.cross <- tune.knn(x = train_set.new, y = train_set$Str_h_texture, k = 2:20,tunecontrol=tune.control(sampling = "cross"), cross=10)
+knn.cross <- tune.knn(x = train_set, y = train_set$Str_h_texture, k = 2:20,tunecontrol=tune.control(sampling = "cross"), cross=10)
 #Summarize the resampling results set
 summary(knn.cross)
 
@@ -213,57 +182,26 @@ set.seed(222)
 #We can us neuralnet() to train a NN model. Also, the train() function from caret can help us tune parameters.
 #We can plot the result to see which set of parameters is fit our data the best.
 
-# Model <- train(Str_h_texture ~ .,     
-#                data=train_set.norm,           
-#                method="neuralnet",   
-#                ### Parameters for layers
-#                tuneGrid = expand.grid(.layer1=c(1:4), .layer2=c(0:4), .layer3=c(0)),               
-#                ### Parameters for optmization
-#                learningrate = 0.01,  
-#                threshold = 0.01,     
-#                stepmax = 50000         
-# )
+Model <- train(Str_h_texture ~ .,
+               data=train_set.num,
+               method="neuralnet",
+               ### Parameters for layers
+               tuneGrid = expand.grid(.layer1=c(1:4), .layer2=c(0:4), .layer3=c(0)),
+               ### Parameters for optmization
+               learningrate = 0.01,
+               threshold = 0.01,
+               stepmax = 50000
+)
 
-nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set.norm, likelihood = TRUE, 
+nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set.num, likelihood = TRUE, 
                           hidden = c(1,2),linear.output = F)
 print(nnClassifier$result.matrix)
 plot(nnClassifier)
 
 #prediction
-output<- compute(nnClassifier,train_set.norm[,-1])
+output<- compute(nnClassifier,train_set[,-1])
 p1 <- output$net.result
 
-#return back to string value
-
-#get what predict value belongs to which label.
-mulPred <- function(x){
-  ma =  max(ts$Str_h_texture)
-  mi =  min(ts$Str_h_texture)
-  dif = ma - mi
-  return (round(x * dif,digits = 0))
-}
-
-mp1 <- mulPred(p1)
-
-l_ts = ts$Str_h_texture[!duplicated(ts$Str_h_texture)]
-l_train_set = train_set$Str_h_texture[!duplicated(train_set$Str_h_texture)]
-
-l_ts <- cbind(l_ts,l_train_set)
-cvtFactorNum <- function(x){
-  if (x>=1 & x<= nrow(l_ts)){
-    return (l_train_set[x])
-  }else{
-    if (x<1){
-      return (l_train_set[1])
-    }else{
-      return (l_train_set[nrow(l_ts)])
-    }
-  }
-  
-}
-
-nnpred <- as.factor(unlist(lapply(mp1,cvtFactorNum)))
-#confusion Matrix & Misclassifcation Error - training data
 nnConfusionMatrix <-  confusionMatrix(train_set$Str_h_texture,nnpred)
 
 #Classification with the Adabag Boosting in R
@@ -302,4 +240,45 @@ xgb.fit=xgb.train(
 )
 
 xgb.fit
+
+#lightGBM
+train_set.num_X <- select (train_set.num,-c(Str_h_texture))
+test_set.num_X <- select (test_set.num,-c(Str_h_texture))
+
+ltrain = lgb.Dataset(data = as.matrix(train_set.num_X),label = train_set.num$Str_h_texture, free_raw_data = FALSE)
+params <- list(objective="regression", metric="l2")
+model <- lgb.cv(params, ltrain , 10, nfold=5, min_data=1, learning_rate=1, early_stopping_rounds=10)
+
+ltest = lgb.Dataset.create.valid(ltrain , as.matrix(test_set.num_X), label = test_set$Str_h_texture)
+valids <- list(test = ltest)
+
+grid_search <- expand.grid(Depth = 8:16,
+                           L1 = 0:10,
+                           L2 = 5:10)
+
+model <- list()
+perf <- numeric(nrow(grid_search))
+
+for (i in 1:nrow(grid_search)) {
+  model[[i]] <- lgb.train(list(objective = "regression",
+                               metric = "l2",
+                               lambda_l1 = grid_search[i, "L1"],
+                               lambda_l2 = grid_search[i, "L2"],
+                               max_depth = grid_search[i, "Depth"]),
+                          ltrain,
+                          2,
+                          valids,
+                          min_data = 1,
+                          learning_rate = 1,
+                          early_stopping_rounds = 5,
+                          num_leaves = 2,
+                          num_iterations = 1000,
+                          min_gain_to_split = 500,)
+  
+  perf[i] <- min(rbindlist(model[[i]]$record_evals$test$l2))
+}
+
+cat("Model ", which.min(perf), " is lowest loss: ", min(perf), sep = "")
+
+print(grid_search[which.min(perf), ])
 
