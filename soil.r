@@ -49,7 +49,7 @@ featureSoilTable <- read.csv(file = "featureTable.csv")
 #normalize the labr_value name
 #preprocessing the data
 normalize <- function(x){
-  return ((x-min(x))/(max(x)-min(x)))
+  return (as.numeric((x-min(x))/(max(x)-min(x))))
 }
 
 #change the NULL to na
@@ -62,16 +62,16 @@ print(featureSoilTable)
 validsoilTexture <- featureSoilTable[!is.na(featureSoilTable$Str_h_texture),]
 invalidsoilTexture <- featureSoilTable[is.na(featureSoilTable$Str_h_texture),]
 
+#remove all columns with na
+validsoilTexture <- validsoilTexture[,colSums(is.na(validsoilTexture))<nrow(validsoilTexture)]
+
 #change null value to 0
 validsoilTexture[is.na(validsoilTexture)] = 0
-#Remove columns with zero values from a dataframe
-validsoilTexture<- validsoilTexture[, colSums(validsoilTexture != 0) > 0]
 
-validsoilTexture <- lapply(validsoilTexture,as.factor)
-validsoilTexture <-lapply(validsoilTexture,as.numeric)
-validsoilTexture <- lapply(validsoilTexture,normalize)
-
-validsoilTexture <- as.data.frame(validsoilTexture)
+validsoilTexture$Str_h_texture <- as.numeric(as.factor(validsoilTexture$Str_h_texture))
+validsoilTexture <- apply(validsoilTexture, 2, as.factor)
+validsoilTexture <- apply(validsoilTexture, 2, as.numeric)
+validsoilTexture <- as.data.frame(apply(validsoilTexture,2,normalize))
 
 ncol <- ncol(validsoilTexture)
 
