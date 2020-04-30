@@ -196,7 +196,7 @@ set.seed(222)
 #We can plot the result to see which set of parameters is fit our data the best.
 
 Model <- train(Str_h_texture ~ .,
-               data=train_set.num,
+               data=train_set,
                method="neuralnet",
                ### Parameters for layers
                tuneGrid = expand.grid(.layer1=c(1:4), .layer2=c(0:4), .layer3=c(0)),
@@ -206,7 +206,7 @@ Model <- train(Str_h_texture ~ .,
                stepmax = 50000
 )
 
-nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set.num, likelihood = TRUE, 
+nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set, likelihood = TRUE, 
                           hidden = c(1,2),linear.output = F)
 print(nnClassifier$result.matrix)
 plot(nnClassifier)
@@ -224,9 +224,9 @@ adaConfusionM <- adapred$confusion
 adaError <- adapred$error
 
 #Classification with xgbboost
-xgb.train = xgb.DMatrix(data = as.matrix(ts),label =as.matrix(ts$Str_h_texture)-1)
-xgb.test = xgb.DMatrix(data = as.matrix(te),label = as.matrix(te$Str_h_texture)-1)
-
+xgb.train = xgb.DMatrix(data = as.matrix(train_set),label =as.matrix(train_set$Str_h_texture)-1)
+xgb.test = xgb.DMatrix(data = as.matrix(test_set),label = as.matrix(test_set$Str_h_texture)-1)
+validsoilTexture$Str_h_texture <- as.factor(validsoilTexture$Str_h_texture)
 num_class = length(levels(validsoilTexture$Str_h_texture))
 
 params = list(
@@ -255,19 +255,29 @@ xgb.fit=xgb.train(
 xgb.fit
 
 #lightGBM
-train_set.num_X <- select (train_set.num,-c(Str_h_texture))
-test_set.num_X <- select (test_set.num,-c(Str_h_texture))
+train_set.num_X <- select (train_set,-c(Str_h_texture))
+test_set.num_X <- select (test_set,-c(Str_h_texture))
 
-ltrain = lgb.Dataset(data = as.matrix(train_set.num_X),label = train_set.num$Str_h_texture, free_raw_data = FALSE)
+ltrain = lgb.Dataset(data = as.matrix(train_set.num_X),label = train_set$Str_h_texture, free_raw_data = FALSE)
 params <- list(objective="regression", metric="l2")
-model <- lgb.cv(params, ltrain , 10, nfold=5, min_data=1, learning_rate=1, early_stopping_rounds=10)
+model <- lgb.cv(params, 
+                ltrain , 
+                10, 
+                nfold=5, 
+                min_data=1, 
+                learning_rate=1, 
+                early_stopping_rounds=10,
+                Depth = 8,
+                lambda_l1 = 10,
+                lambda_l2 = 10
+                )
 
 ltest = lgb.Dataset.create.valid(ltrain , as.matrix(test_set.num_X), label = test_set$Str_h_texture)
 valids <- list(test = ltest)
 
-grid_search <- expand.grid(Depth = 8:16,
-                           L1 = 0:10,
-                           L2 = 5:10)
+grid_search <- expand.grid(Depth = 1:8,
+                           L1 = 8:16,
+                           L2 = 8:16)
 
 model <- list()
 perf <- numeric(nrow(grid_search))
