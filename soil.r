@@ -99,7 +99,7 @@ bestType=NA
 for(ty in tryTypes){
 
    for(co in tryCosts){
-    acc=LiblineaR(data=train_set.num[,-1],target=train_set.num[,c("Str_h_texture")],type=7,cost=co,bias=1,verbose=FALSE)
+    acc=LiblineaR(data=train_set[,-1],target=train_set[,c("Str_h_texture")],type=7,cost=co,bias=1,verbose=FALSE)
     cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
     if(acc>bestAcc){
     bestCost=co
@@ -111,9 +111,9 @@ for(ty in tryTypes){
 }
 
 #svm classifier
-svmClassifier <- LiblineaR(data = train_set.num[,-1],target = train_set.num[,c("Str_h_texture")],bias=1,cost = 1000)
-svmPredictTest <- predict(svmClassifier,test_set.num[,-1],proba=TRUE,decisionValues=TRUE)
-svmPredictTestTable <- table(svmPredictTest$predictions,test_set.num[,c("Str_h_texture")])
+svmClassifier <- LiblineaR(data = train_set[,-1],target = train_set[,c("Str_h_texture")],bias=1,cost = 1000)
+svmPredictTest <- predict(svmClassifier,test_set[,-1],proba=TRUE,decisionValues=TRUE)
+svmPredictTestTable <- table(svmPredictTest$predictions,test_set[,c("Str_h_texture")])
 
 #randomForest Classifier,error rate = 72.6%,random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
 # RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,proximity = T,mtry = 10)
