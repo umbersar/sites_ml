@@ -224,8 +224,8 @@ adaConfusionM <- adapred$confusion
 adaError <- adapred$error
 
 #Classification with xgbboost
-xgb.train = xgb.DMatrix(data = as.matrix(train_set),label =as.matrix(train_set$Str_h_texture)-1)
-xgb.test = xgb.DMatrix(data = as.matrix(test_set),label = as.matrix(test_set$Str_h_texture)-1)
+xgb.train = xgb.DMatrix(data = as.matrix(train_set),label =as.matrix(train_set$Str_h_texture))
+xgb.test = xgb.DMatrix(data = as.matrix(test_set),label = as.matrix(test_set$Str_h_texture))
 validsoilTexture$Str_h_texture <- as.factor(validsoilTexture$Str_h_texture)
 num_class = length(levels(validsoilTexture$Str_h_texture))
 
@@ -238,7 +238,7 @@ params = list(
   colsample_bytree=1,
   objective="multi:softprob",
   eval_metric="mlogloss",
-  num_class=num_class
+  num_class=num_class+1
 )
 
 # Train the XGBoost classifer
