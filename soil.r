@@ -44,7 +44,7 @@ library(lightgbm)
 #matrix library
 library(Matrix)
 
-featureSoilTable <- read.csv(file = "featureTable.csv")
+featureSoilTable <- read.csv(file = "featureTable.csv",stringsAsFactors=FALSE)
 
 #normalize the labr_value name
 #preprocessing the data
