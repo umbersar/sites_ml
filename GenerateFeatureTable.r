@@ -6,7 +6,7 @@ library(data.table)
 library(dplyr)
 
 #load the soil data
-soil <- read.csv(file = "hr_lr_labm.csv")
+soil <- read.csv(file = "hr_lr_labm.csv",fileEncoding="UTF-8-BOM")
 #reduce the amount to 5000
 rSoil <- nrow(soil)
 
