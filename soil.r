@@ -71,7 +71,8 @@ validsoilTexture[is.na(validsoilTexture)] = 0
 validsoilTexture$Str_h_texture <- as.numeric(as.factor(validsoilTexture$Str_h_texture))
 validsoilTexture <- apply(validsoilTexture, 2, as.factor)
 validsoilTexture <- apply(validsoilTexture, 2, as.numeric)
-validsoilTexture <- as.data.frame(apply(validsoilTexture,2,normalize))
+validsoilTexture[,-1]<- (apply(validsoilTexture[,-1],2,normalize))
+validsoilTexture <- as.data.frame(validsoilTexture)
 
 countype <- length(unique(validsoilTexture$Str_h_texture))
 validsoilTexture$Str_h_texture <- floor(validsoilTexture$Str_h_texture * countype)
