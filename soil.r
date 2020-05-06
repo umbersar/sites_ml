@@ -74,8 +74,6 @@ validsoilTexture <- apply(validsoilTexture, 2, as.numeric)
 validsoilTexture[,-1]<- (apply(validsoilTexture[,-1],2,normalize))
 validsoilTexture <- as.data.frame(validsoilTexture)
 
-countype <- length(unique(validsoilTexture$Str_h_texture))
-validsoilTexture$Str_h_texture <- floor(validsoilTexture$Str_h_texture * countype)
 ncol <- ncol(validsoilTexture)
 
 #set random seed
@@ -115,20 +113,30 @@ for(ty in tryTypes){
 
 #svm classifier
 svmClassifier <- LiblineaR(data = train_set[,-1],target = train_set[,c("Str_h_texture")],bias=1,cost = 1000)
+svmPredictTrain <- predict(svmClassifier,train_set[,-1],proba=TRUE,decisionValues=TRUE)
+svmPredictTrainTable <- table(svmPredictTrain$predictions,train_set[,c("Str_h_texture")])
 svmPredictTest <- predict(svmClassifier,test_set[,-1],proba=TRUE,decisionValues=TRUE)
 svmPredictTestTable <- table(svmPredictTest$predictions,test_set[,c("Str_h_texture")])
 
-svmcol <- colnames(svmPredictTestTable)
-svmrow <- rownames(svmPredictTestTable)
+svmTestcol <- colnames(svmPredictTestTable)
+svmTestrow <- rownames(svmPredictTestTable)
 
-sum = 0
-for (i in svmcol){
-  if (i %in% svmrow){
-    sum = sum + svmPredictTestTable[i,i]
+svmTraincol <- colnames(svmPredictTrainTable)
+svmTrainrow <- rownames(svmPredictTrainTable)
+
+sumElementinTable <- function(a,c,r){
+  sum = 0
+  for (i in c){
+    if (i %in% r){
+      sum = sum + a[i,i]
+    }
   }
+  return(sum)
 }
 
-svmPredictScore <- sum/sum(svmPredictTestTable)
+
+svmPredictTestScore <- sumElementinTable(svmPredictTestTable,svmTestcol,svmTestrow)/sum(svmPredictTestTable)
+svmPredictTrainScore <- sumElementinTable(svmPredictTrainTable,svmTraincol,svmTrainrow)/sum(svmPredictTrainTable)
 #randomForest Classifier,error rate = 72.6%,random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
 # RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,proximity = T,mtry = 10)
 # 
