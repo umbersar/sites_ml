@@ -44,6 +44,18 @@ library(lightgbm)
 #matrix library
 library(Matrix)
 
+#catboost
+library(catboost)
+
+#fast naive bayes
+library("fastNaiveBayes")
+
+#tidyverse for easy data manipulation and visualization
+#caret for easy machine learning workflow
+
+library(tidyverse)
+library(caret)
+
 featureSoilTable <- read.csv(file = "featureTable.csv",stringsAsFactors=FALSE)
 
 #normalize the labr_value name
@@ -85,31 +97,36 @@ split = sample.split(validsoilTexture$Str_h_texture,SplitRatio = 0.7)
 train_set = subset(validsoilTexture, split == TRUE)
 test_set = subset(validsoilTexture, split == FALSE)
 
+train_set$Str_h_texture = as.numeric(train_set$Str_h_texture)
+test_set$Str_h_texture = as.numeric(test_set$Str_h_texture)
 summary(train_set)
 #train_set.scale = scale(train_set.num,center=  TRUE,scale = TRUE)
 
 # test score around 63%
 
 # Find the best model with the best cost parameter via 10-fold cross-validations
-tryTypes=c(0:7)
-tryCosts=c(1000,1,0.001)
-bestCost=NA
-bestAcc=0.6290723
-bestType=NA
 
-for(ty in tryTypes){
+# the tunning part of svm, which will take lots of time to run
 
-   for(co in tryCosts){
-    acc=LiblineaR(data=train_set[,-1],target=train_set[,c("Str_h_texture")],type=7,cost=co,bias=1,verbose=FALSE)
-    cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
-    if(acc>bestAcc){
-    bestCost=co
-    bestAcc=acc
-    bestType=ty
-    }
-  }
-
-}
+# tryTypes=c(0:7)
+# tryCosts=c(1000,1,0.001)
+# bestCost=NA
+# bestAcc=0.6290723
+# bestType=NA
+# 
+# for(ty in tryTypes){
+# 
+#    for(co in tryCosts){
+#     acc=LiblineaR(data=train_set[,-1],target=train_set[,c("Str_h_texture")],type=7,cost=co,bias=1,verbose=FALSE)
+#     cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
+#     if(acc>bestAcc){
+#     bestCost=co
+#     bestAcc=acc
+#     bestType=ty
+#     }
+#   }
+# 
+# }
 
 #svm classifier
 svmClassifier <- LiblineaR(data = train_set[,-1],target = train_set[,c("Str_h_texture")],bias=1,cost = 1000)
@@ -157,31 +174,39 @@ cartFit <- rpart(Str_h_texture ~ .,data = train_set,control = rpart.control(cp =
 printcp(cartFit)
 #we can prune data with the CP value that contains the lowest error.
 
-fit.pruned = prune(cartFit, cp = 0.007537688)
+fit.pruned = prune(cartFit, cp = 0.00020393)
 
-cartPrediction <- predict(fit.pruned, test_set, type = "class")
+cartPrediction <- predict(fit.pruned, test_set, type = "vector")
 
 data.frame(test_set,cartPrediction)
 
-confusionMatrix(test_set$Str_h_texture,cartPrediction)
 
+cartPrediction = round(cartPrediction,0)
+cartTable <- table(test_set$Str_h_texture,cartPrediction)
+cartrow <- rownames(cartTable)
+cartcol <- colnames(cartTable)
+cartscore <- sumElementinTable(cartTable,cartrow,cartcol)/sum(cartTable)
 #classification with KNN model
 
-#using knn
-knnClassifer <- knn(train_set,test_set,cl = train_set$Str_h_texture,k=9)
-
-Kn_test <- table(test_set$Str_h_texture,knnClassifer)
-
-Kn_TestScore = (sum(diag(Kn_test)))/sum(Kn_test)
-
-cm_KnTestScore <- confusionMatrix(test_set$Str_h_texture,knnClassifer)
-
-#Full Data set can be used for cross validation
-knn.cross <- tune.knn(x = train_set, y = train_set$Str_h_texture, k = 2:20,tunecontrol=tune.control(sampling = "cross"), cross=10)
-#Summarize the resampling results set
-summary(knn.cross)
-
-
+#using knn now having some problem with knn
+# knnClassifer <- knn(train_set,test_set,cl = train_set$Str_h_texture,k=9)
+# 
+# Kn_test <- table(test_set$Str_h_texture,knnClassifer)
+# 
+# #Full Data set can be used for cross validation
+# knn.cross <- tune.knn(x = train_set, y = train_set$Str_h_texture, k = 2:20,tunecontrol=tune.control(sampling = "cross"), cross=10)
+# #Summarize the resampling results set
+# summary(knn.cross)
+# 
+# #give a warning which these variables have zero variances
+# knnmodel <- train(
+#   Str_h_texture ~., data = train_set, method = "knn",
+#   trControl = trainControl("cv", number = 10),
+#   preProcess = c("center","scale"),
+#   tuneLength = 20
+# )
+# 
+# plot()
 #NaiveBayes classification
 # The formula is traditional Y~X1+X2+бн+Xn
 # The data is typically a dataframe of numeric or factor variables.
@@ -189,17 +214,17 @@ summary(knn.cross)
 # subset lets you use only a selection subset of your data based on some boolean filter
 # na.action lets you determine what to do when you hit a missing value in your dataset.
 
-nbClassifier <- naiveBayes(Str_h_texture ~ .,data = train_set,laplace=2)
-nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
-nbTableTest <- table(nbTestPrediction,test_set$Str_h_texture)
-confusionMatrix(nbTableTest)
+# nbClassifier <- naiveBayes(Str_h_texture ~ .,data = train_set,laplace=2)
+# nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
+# nbTableTest <- table(nbTestPrediction,test_set$Str_h_texture)
+# 
+# 
+# nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
+# nbTrainTable <- table(nbTrainPrediction,train_set$Str_h_texture)
+# confusionMatrix(nbTrainTable )
 
-nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
-nbTrainTable <- table(nbTrainPrediction,train_set$Str_h_texture)
-confusionMatrix(nbTrainTable )
-
+#naivebayes 
 #neuro network
-set.seed(222)
 
 #We can us neuralnet() to train a NN model. Also, the train() function from caret can help us tune parameters.
 #We can plot the result to see which set of parameters is fit our data the best.
@@ -224,9 +249,11 @@ plot(nnClassifier)
 output<- compute(nnClassifier,train_set[,-1])
 p1 <- output$net.result
 
-nnConfusionMatrix <-  confusionMatrix(train_set$Str_h_texture,nnpred)
+nnConfusionMatrix <-  confusionMatrix(train_set$Str_h_texture,p1)
 
 #Classification with the Adabag Boosting in R
+train_set$Str_h_texture = as.factor(train_set$Str_h_texture)
+str(train_set$Str_h_texture)
 adaClassifer <- boosting(Str_h_texture ~ .,data = train_set,boos = T,mfinal = 10)
 adapred  <- predict(adaClassifer,test_set)
 adaConfusionM <- adapred$confusion
@@ -279,7 +306,7 @@ model <- lgb.cv(params,
                 Depth = 8,
                 lambda_l1 = 10,
                 lambda_l2 = 10
-                )
+)
 
 ltest = lgb.Dataset.create.valid(ltrain , as.matrix(test_set.num_X), label = test_set$Str_h_texture)
 valids <- list(test = ltest)
@@ -313,4 +340,32 @@ for (i in 1:nrow(grid_search)) {
 cat("Model ", which.min(perf), " is lowest loss: ", min(perf), sep = "")
 
 print(grid_search[which.min(perf), ])
+
+
+#catboost
+fit_params <- list(l2_leaf_reg = 0.001,
+                   depth=6,
+                   learning_rate = 0.1,
+                   iterations = 100,
+                   random_seed = 233)
+
+
+pool = catboost.load_pool(as.matrix(train_set.num_X), label = as.integer(train_set[,1]))
+
+model <- catboost.train(pool, params = fit_params)
+
+
+#get the prediction
+catprediction <- catboost.predict(model, 
+                                  pool, 
+                                  prediction_type = 'RawFormulaVal')
+
+#round the prediction
+catprediction <- round(catprediction,0)
+
+catTable <- table(train_set$Str_h_texture,catprediction)
+
+catTablerow <- rownames(catTable)
+catTablecol <- colnames(catTable)
+catscore <- sumElementinTable(catTable,catTablerow,catTablecol)/sum(catTable)
 

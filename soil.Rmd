@@ -1,0 +1,82 @@
+---
+title: "machine learning documentation in R"
+output: html_notebook
+---
+```{r}
+setwd("C:/Users/horat/Desktop/CSIROIntership/soilCode")
+
+
+library(dplyr)
+
+#create pivot table 
+library(reshape)
+library(data.table)
+
+#data partition seperate trainset and testset
+library (caTools)
+
+library(caret)
+
+#svm library due to limitation of iterations change the library
+library(e1071)
+library(LiblineaR)
+
+#random forest
+library(randomForest)
+
+#ID4 Decision Tree classifier(CART)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+
+#xgboost
+library(xgboost)
+
+#for knn classification
+library(class)
+
+#install neuralnetwork
+library(neuralnet)
+
+#adabag library
+library(adabag)
+
+#Stochastic Gradient Descent (SGD) Method Learning Function
+library(gradDescent)
+library(lightgbm)
+#https://www.kaggle.com/c/amazon-employee-access-challenge/discussion/5128#38925
+
+#matrix library
+library(Matrix)
+
+#catboost
+library(catboost)
+
+#fast naive bayes
+library("fastNaiveBayes")
+
+#tidyverse for easy data manipulation and visualization
+#caret for easy machine learning workflow
+
+library(tidyverse)
+library(caret)
+
+featureSoilTable <- read.csv(file = "featureTable.csv",stringsAsFactors=FALSE)
+```
+Grouping data in a Pivot Table
+```{r}
+print(head(featureSoilTable))
+```
+create the normalize function
+```{r}
+normalize <- function(x){
+  return (as.numeric((x-min(x))/(max(x)-min(x))))
+}
+```
+
+```{r}
+#change the NULL to na
+featureSoilTable['h_texture'][featureSoilTable['h_texture'] == "NULL"] <- NA
+#add appendix to colname:
+colnames(featureSoilTable) <- paste("Str",colnames(featureSoilTable),sep = "_")
+```
