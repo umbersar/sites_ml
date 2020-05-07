@@ -57,7 +57,6 @@ library(tidyverse)
 library(caret)
 
 featureSoilTable <- read.csv(file = "featureTable.csv",stringsAsFactors=FALSE)
-
 #normalize the labr_value name
 #preprocessing the data
 normalize <- function(x){
@@ -108,25 +107,25 @@ summary(train_set)
 
 # the tunning part of svm, which will take lots of time to run
 
-# tryTypes=c(0:7)
-# tryCosts=c(1000,1,0.001)
-# bestCost=NA
-# bestAcc=0.6290723
-# bestType=NA
-# 
-# for(ty in tryTypes){
-# 
-#    for(co in tryCosts){
-#     acc=LiblineaR(data=train_set[,-1],target=train_set[,c("Str_h_texture")],type=7,cost=co,bias=1,verbose=FALSE)
-#     cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
-#     if(acc>bestAcc){
-#     bestCost=co
-#     bestAcc=acc
-#     bestType=ty
-#     }
-#   }
-# 
-# }
+tryTypes=c(0:7)
+tryCosts=c(1000,1,0.001)
+bestCost=NA
+bestAcc=0.6290723
+bestType=NA
+
+for(ty in tryTypes){
+
+   for(co in tryCosts){
+    acc=LiblineaR(data=train_set[,-1],target=train_set[,c("Str_h_texture")],type=7,cost=co,bias=1,verbose=FALSE)
+    cat("Results for C=",co," : ",acc," accuracy.\n",sep="")
+    if(acc>bestAcc){
+    bestCost=co
+    bestAcc=acc
+    bestType=ty
+    }
+  }
+
+}
 
 #svm classifier
 svmClassifier <- LiblineaR(data = train_set[,-1],target = train_set[,c("Str_h_texture")],bias=1,cost = 1000)
@@ -154,7 +153,9 @@ sumElementinTable <- function(a,c,r){
 
 svmPredictTestScore <- sumElementinTable(svmPredictTestTable,svmTestcol,svmTestrow)/sum(svmPredictTestTable)
 svmPredictTrainScore <- sumElementinTable(svmPredictTrainTable,svmTraincol,svmTrainrow)/sum(svmPredictTrainTable)
-#randomForest Classifier,error rate = 72.6%,random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
+
+#cannot run the below algorithms since it cannot allocate vector of size 16.5GB
+#random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
 # RfClassifier = randomForest(Str_h_texture ~ .,data = train_set,proximity = T,mtry = 10)
 # 
 # rfTable <- table(predict(RfClassifier),train_set$Str_h_texture)
@@ -168,7 +169,7 @@ svmPredictTrainScore <- sumElementinTable(svmPredictTrainTable,svmTraincol,svmTr
 # y <- train_set$Str_h_texture
 # bestMtry <- tuneRF(x,y, stepFactor = 1.15, improve = 1e-5, ntree = 1000)
 
-#Classification with CART model geneating poor performance
+#Classification with CART model
 cartFit <- rpart(Str_h_texture ~ .,data = train_set,control = rpart.control(cp = 0.0001))
 #get cp value
 printcp(cartFit)
@@ -233,23 +234,30 @@ Model <- train(Str_h_texture ~ .,
                data=train_set,
                method="neuralnet",
                ### Parameters for layers
-               tuneGrid = expand.grid(.layer1=c(1:4), .layer2=c(0:4), .layer3=c(0)),
+               tuneGrid = expand.grid(.layer1=c(1:2), .layer2=c(0:2), .layer3=c(0)),
                ### Parameters for optmization
                learningrate = 0.01,
                threshold = 0.01,
-               stepmax = 50000
+               stepmax = 5000
 )
 
-nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set, likelihood = TRUE, 
-                          hidden = c(1,2),linear.output = F)
+# in nnclassifier y value should be normalized
+train_set.norm <- train_set
+maxStr_h_texture <- max(train_set.norm$Str_h_texture)
+minStr_h_texture <- min(train_set.norm$Str_h_texture)
+train_set.norm$Str_h_texture <- normalize(train_set.norm$Str_h_texture)
+
+nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set.norm, likelihood = TRUE, 
+                          hidden = 1,linear.output = F,act.fct = "tanh")
 print(nnClassifier$result.matrix)
 plot(nnClassifier)
 
 #prediction
 output<- compute(nnClassifier,train_set[,-1])
 p1 <- output$net.result
-
-nnConfusionMatrix <-  confusionMatrix(train_set$Str_h_texture,p1)
+p1 <- p1 * (maxStr_h_texture-minStr_h_texture)
+p1 <- round(p1,0)
+nntable<-  table(train_set$Str_h_texture,p1)
 
 #Classification with the Adabag Boosting in R
 train_set$Str_h_texture = as.factor(train_set$Str_h_texture)
