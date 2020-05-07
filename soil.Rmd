@@ -386,7 +386,60 @@ cat('The algorithm takes' ,cattakenTime , 'seconds')
 ```{r}
 cat('The algorithm scores' ,catscore)
 ```
+## naivebayes classification*
+```{r}
 
+nbstarttime <- Sys.time()
+  
+nbClassifier <- naiveBayes(as.factor(Str_h_texture) ~ .,data = train_set,laplace=2)
+nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
+nbTableTest <- table(nbTestPrediction,test_set$Str_h_texture)
+
+nbTestTablerow <- rownames(nbTableTest)
+nbTestTablecol <- colnames(nbTableTest)
+nbTestTablescore<- sumElementinTable(nbTableTest,nbTestTablerow,nbTestTablecol)/sum(nbTableTest)
+
+nbendtime <- Sys.time()
+
+nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
+nbTrainTable <- table(nbTrainPrediction,train_set$Str_h_texture)
+
+nbTrainTablerow <- rownames(nbTrainTable)
+nbTrainTablecol <- colnames(nbTrainTable)
+nbTrainTablescore <- sumElementinTable(nbTrainTable,nbTrainTablerow,nbTrainTablecol)/sum(nbTrainTable)
+
+nbtakentime <- nbendtime - nbstarttime
+
+```
+# nbalgorithm 
+```{r}
+cat('NaiveBayes takes',nbtakentime,'seconds')
+
+```
+
+# nbscore
+```{r}
+cat('NaiveBayes score',nbTrainTablescore)
+
+```
+
+
+# fastNaiveBayes algorithms by gaussian
+```{r}
+fnbstartTime <- Sys.time()
+dist <- fnb.detect_distribution(train_set.num_X)
+gauss <- fnb.gaussian(train_set.num_X[,dist$gaussian], as.factor(train_set$Str_h_texture),sparse = TRUE,check = FALSE)
+pred <- predict(gauss, train_set.num_X[,dist$gaussian])
+fnbendTime <- Sys.time()
+error <- mean(as.factor(train_set$Str_h_texture)!=pred)
+print(error)
+fnbtakentime <- fnbendTime - fnbstartTime
+```
+
+```{r}
+
+print("fastNaiveBayes takes ", fnbtakentime, "seconds")
+```
 # Algorithms that cannot run in a specific time
 
 # neuro network

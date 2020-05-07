@@ -56,6 +56,9 @@ library("fastNaiveBayes")
 library(tidyverse)
 library(caret)
 
+#mlp
+library(RSNNS)
+
 featureSoilTable <- read.csv(file = "featureTable.csv",stringsAsFactors=FALSE)
 #normalize the labr_value name
 #preprocessing the data
@@ -98,6 +101,12 @@ test_set = subset(validsoilTexture, split == FALSE)
 
 train_set$Str_h_texture = as.numeric(train_set$Str_h_texture)
 test_set$Str_h_texture = as.numeric(test_set$Str_h_texture)
+
+train_set.num_X <- select (train_set,-c(Str_h_texture))
+test_set.num_X <- select (test_set,-c(Str_h_texture))
+
+#print each element contribution
+rowsum(rep(1,times = length(train_set$Str_h_texture)), train_set$Str_h_texture)
 summary(train_set)
 #train_set.scale = scale(train_set.num,center=  TRUE,scale = TRUE)
 
@@ -208,6 +217,7 @@ cartscore <- sumElementinTable(cartTable,cartrow,cartcol)/sum(cartTable)
 # )
 # 
 # plot()
+
 #NaiveBayes classification
 # The formula is traditional Y~X1+X2+бн+Xn
 # The data is typically a dataframe of numeric or factor variables.
@@ -215,16 +225,27 @@ cartscore <- sumElementinTable(cartTable,cartrow,cartcol)/sum(cartTable)
 # subset lets you use only a selection subset of your data based on some boolean filter
 # na.action lets you determine what to do when you hit a missing value in your dataset.
 
-# nbClassifier <- naiveBayes(Str_h_texture ~ .,data = train_set,laplace=2)
-# nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
-# nbTableTest <- table(nbTestPrediction,test_set$Str_h_texture)
-# 
-# 
-# nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
-# nbTrainTable <- table(nbTrainPrediction,train_set$Str_h_texture)
-# confusionMatrix(nbTrainTable )
+nbClassifier <- naiveBayes(as.factor(Str_h_texture) ~ .,data = train_set,laplace=2)
+nbTestPrediction <- predict(nbClassifier,test_set,type = "class")
+nbTableTest <- table(nbTestPrediction,test_set$Str_h_texture)
 
-#naivebayes 
+nbTestTablerow <- rownames(nbTableTest)
+nbTestTablecol <- colnames(nbTableTest)
+nbTestTablescore<- sumElementinTable(nbTableTest,nbTestTablerow,nbTestTablecol)/sum(nbTableTest)
+
+nbTrainPrediction <- predict(nbClassifier,train_set,type = "class")
+nbTrainTable <- table(nbTrainPrediction,train_set$Str_h_texture)
+
+nbTrainTablerow <- rownames(nbTrainTable)
+nbTrainTablecol <- colnames(nbTrainTable)
+nbTrainTablescore <- sumElementinTable(nbTrainTable,nbTrainTablerow,nbTrainTablecol)
+
+#fastnaivebayes 
+dist <- fnb.detect_distribution(train_set.num_X)
+gauss <- fnb.gaussian(train_set.num_X[,dist$gaussian], as.factor(train_set$Str_h_texture),sparse = TRUE,check = FALSE)
+pred <- predict(gauss, train_set.num_X[,dist$gaussian])
+error <- mean(as.factor(train_set$Str_h_texture)!=pred)
+
 #neuro network
 
 #We can us neuralnet() to train a NN model. Also, the train() function from caret can help us tune parameters.
@@ -260,9 +281,7 @@ p1 <- round(p1,0)
 nntable<-  table(train_set$Str_h_texture,p1)
 
 #Classification with the Adabag Boosting in R
-train_set$Str_h_texture = as.factor(train_set$Str_h_texture)
-str(train_set$Str_h_texture)
-adaClassifer <- boosting(Str_h_texture ~ .,data = train_set,boos = T,mfinal = 10)
+adaClassifer <- boosting(as.factor(Str_h_texture) ~ .,data = train_set,boos = T,mfinal = 10)
 adapred  <- predict(adaClassifer,test_set)
 adaConfusionM <- adapred$confusion
 adaError <- adapred$error
@@ -299,9 +318,6 @@ xgb.fit=xgb.train(
 xgb.fit
 
 #lightGBM
-train_set.num_X <- select (train_set,-c(Str_h_texture))
-test_set.num_X <- select (test_set,-c(Str_h_texture))
-
 ltrain = lgb.Dataset(data = as.matrix(train_set.num_X),label = train_set$Str_h_texture, free_raw_data = FALSE)
 params <- list(objective="regression", metric="l2")
 model <- lgb.cv(params, 
