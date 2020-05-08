@@ -267,6 +267,13 @@ train_set.norm <- train_set
 maxStr_h_texture <- max(train_set.norm$Str_h_texture)
 minStr_h_texture <- min(train_set.norm$Str_h_texture)
 train_set.norm$Str_h_texture <- normalize(train_set.norm$Str_h_texture)
+train_set.norm.X <- train_set.norm[,-1]
+
+test_set.norm <- test_set
+maxteStr_h_texture <- max(test_set.norm$Str_h_texture)
+minteStr_h_texture <- min(test_set.norm$Str_h_texture)
+test_set.norm$Str_h_texture <- normalize(test_set.norm$Str_h_texture)
+test_set.norm.X <- test_set.norm[,-1]
 
 nnClassifier <- neuralnet(Str_h_texture ~ .,data=train_set.norm, likelihood = TRUE, 
                           hidden = 1,linear.output = F,act.fct = "tanh")
@@ -279,6 +286,20 @@ p1 <- output$net.result
 p1 <- p1 * (maxStr_h_texture-minStr_h_texture)
 p1 <- round(p1,0)
 nntable<-  table(train_set$Str_h_texture,p1)
+
+#mlp  (similar to neural network)
+model <- mlp(train_set.norm.X, train_set.norm$Str_h_texture, size=5, learnFuncParams=c(0.1), 
+             maxit=50, inputsTest=test_set.norm.X, targetsTest=test_set.norm$Str_h_texture)
+
+summary(model)
+
+predictions <- predict(model,test_set.norm.X)
+predictions <- predictions * (maxteStr_h_texture - minteStr_h_texture)
+predictions <- round(predictions,0)
+mlptable <- table(test_set$Str_h_texture,predictions)
+mlprow <-rownames(mlptable)
+mlpcol <- colnames(mlptable)
+mlpscore <- sumElementinTable(mlptable,mlprow,mlpcol)/sum(mlptable)
 
 #Classification with the Adabag Boosting in R
 adaClassifer <- boosting(as.factor(Str_h_texture) ~ .,data = train_set,boos = T,mfinal = 10)
@@ -392,4 +413,6 @@ catTable <- table(train_set$Str_h_texture,catprediction)
 catTablerow <- rownames(catTable)
 catTablecol <- colnames(catTable)
 catscore <- sumElementinTable(catTable,catTablerow,catTablecol)/sum(catTable)
+
+
 
