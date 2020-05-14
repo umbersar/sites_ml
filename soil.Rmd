@@ -58,6 +58,9 @@ library("fastNaiveBayes")
 #tidyverse for easy data manipulation and visualization
 #caret for easy machine learning workflow
 
+#mlp
+library(RSNNS)
+
 library(tidyverse)
 library(caret)
 
@@ -69,8 +72,15 @@ print(head(featureSoilTable))
 ```
 # create the normalize function
 ```{r}
-normalize <- function(x){
-  return (as.numeric((x-min(x))/(max(x)-min(x))))
+normalize <-function(y) {
+  
+  x<-y[!is.na(y)]
+  
+  x<-(x - min(x)) / (max(x) - min(x))
+  
+  y[!is.na(y)]<-x
+  
+  return(y)
 }
 ```
 # preprocessing of the featuring table
@@ -90,19 +100,30 @@ print(head(featureSoilTable))
 validsoilTexture <- featureSoilTable[!is.na(featureSoilTable$Str_h_texture),]
 invalidsoilTexture <- featureSoilTable[is.na(featureSoilTable$Str_h_texture),]
 
-#remove all columns with na
+# remove columns that only have nas
 validsoilTexture <- validsoilTexture[,colSums(is.na(validsoilTexture))<nrow(validsoilTexture)]
+#remove rows have less than 4 data
+contribution <- as.data.frame(rowsum(rep(1,times = length(validsoilTexture$Str_h_texture)), validsoilTexture$Str_h_texture),row.names = count)
+label <- sort(unique(validsoilTexture$Str_h_texture))
+contribution <- cbind(label,contribution)
+invaliddata <- contribution[contribution$V1 < 4,]
 
-#change null value to 0
-validsoilTexture[is.na(validsoilTexture)] = 0
+for (l in invaliddata$label){
+  rowlist = which(validsoilTexture$Str_h_texture == l)
+  #print(rowlist)
+  validsoilTexture <- validsoilTexture[-rowlist,]
+
+}
 ```
 # set x to numeric
 ```{r}
 validsoilTexture$Str_h_texture <- as.numeric(as.factor(validsoilTexture$Str_h_texture))
-validsoilTexture <- apply(validsoilTexture, 2, as.factor)
-validsoilTexture <- apply(validsoilTexture, 2, as.numeric)
+validsoilTexture[,-1] <- apply(apply(validsoilTexture[,-1], 2, as.factor), 2, as.numeric)
 validsoilTexture[,-1]<- (apply(validsoilTexture[,-1],2,normalize))
 validsoilTexture <- as.data.frame(validsoilTexture)
+#change null value to 0
+validsoilTexture[is.na(validsoilTexture)] = 0
+
 ncol <- ncol(validsoilTexture)
 ```
 # print out the head of validsoilTexture
@@ -226,7 +247,7 @@ cartPrediction <- predict(fit.pruned, test_set, type = "vector")
 
 cartendTime <- Sys.time()
 
-cartTimeTaken <- cartendTime - cartendTime
+cartTimeTaken <- cartendTime - cartstartTime
 
 data.frame(test_set,cartPrediction)
 
@@ -298,9 +319,9 @@ max_depth: You also can use max_depth to limit the tree depth explicitly.
 ltest = lgb.Dataset.create.valid(ltrain , as.matrix(test_set.num_X), label = test_set$Str_h_texture)
 valids <- list(test = ltest)
 
-grid_search <- expand.grid(Depth = 1:8,
-                           L1 = 8:16,
-                           L2 = 8:16)
+grid_search <- expand.grid(Depth = 7:8,
+                           L1 = 8:12,
+                           L2 = 8:12)
 
 model <- list()
 perf <- numeric(nrow(grid_search))
@@ -318,7 +339,7 @@ for (i in 1:nrow(grid_search)) {
                           learning_rate = 1,
                           early_stopping_rounds = 5,
                           num_leaves = 2,
-                          num_iterations = 1000,
+                          num_iterations = 100,
                           min_gain_to_split = 500,)
   
   perf[i] <- min(rbindlist(model[[i]]$record_evals$test$l2))

@@ -62,32 +62,51 @@ library(RSNNS)
 featureSoilTable <- read.csv(file = "featureTable.csv",stringsAsFactors=FALSE)
 #normalize the labr_value name
 #preprocessing the data
-normalize <- function(x){
-  return (as.numeric((x-min(x))/(max(x)-min(x))))
+normalize <-function(y) {
+  
+  x<-y[!is.na(y)]
+  
+  x<-(x - min(x)) / (max(x) - min(x))
+  
+  y[!is.na(y)]<-x
+  
+  return(y)
 }
 
 #change the NULL to na
 featureSoilTable['h_texture'][featureSoilTable['h_texture'] == "NULL"] <- NA
 #add appendix to colname:
 colnames(featureSoilTable) <- paste("Str",colnames(featureSoilTable),sep = "_")
-print(featureSoilTable)
 
 #extract valid and invalid soil sample
 validsoilTexture <- featureSoilTable[!is.na(featureSoilTable$Str_h_texture),]
 invalidsoilTexture <- featureSoilTable[is.na(featureSoilTable$Str_h_texture),]
 
-#remove all columns with na
+# remove columns that only have nas
 validsoilTexture <- validsoilTexture[,colSums(is.na(validsoilTexture))<nrow(validsoilTexture)]
+
+#remove rows have less than 4 data
+contribution <- as.data.frame(rowsum(rep(1,times = length(validsoilTexture$Str_h_texture)), validsoilTexture$Str_h_texture),row.names = count)
+label <- sort(unique(validsoilTexture$Str_h_texture))
+contribution <- cbind(label,contribution)
+invaliddata <- contribution[contribution$V1 < 4,]
+
+for (l in invaliddata$label){
+  rowlist = which(validsoilTexture$Str_h_texture == l)
+  #print(rowlist)
+  validsoilTexture <- validsoilTexture[-rowlist,]
+
+}
+
+validsoilTexture$Str_h_texture <- as.numeric(as.factor(validsoilTexture$Str_h_texture))
+validsoilTexture[,-1] <- apply(apply(validsoilTexture[,-1], 2, as.factor), 2, as.numeric)
+validsoilTexture[,-1]<- (apply(validsoilTexture[,-1],2,normalize))
+validsoilTexture <- as.data.frame(validsoilTexture)
 
 #change null value to 0
 validsoilTexture[is.na(validsoilTexture)] = 0
 
-validsoilTexture$Str_h_texture <- as.numeric(as.factor(validsoilTexture$Str_h_texture))
-validsoilTexture <- apply(validsoilTexture, 2, as.factor)
-validsoilTexture <- apply(validsoilTexture, 2, as.numeric)
-validsoilTexture[,-1]<- (apply(validsoilTexture[,-1],2,normalize))
-validsoilTexture <- as.data.frame(validsoilTexture)
-
+print(validsoilTexture)
 ncol <- ncol(validsoilTexture)
 
 #set random seed
@@ -105,8 +124,9 @@ test_set$Str_h_texture = as.numeric(test_set$Str_h_texture)
 train_set.num_X <- select (train_set,-c(Str_h_texture))
 test_set.num_X <- select (test_set,-c(Str_h_texture))
 
+print(featureSoilTable)
 #print each element contribution
-rowsum(rep(1,times = length(train_set$Str_h_texture)), train_set$Str_h_texture)
+
 summary(train_set)
 #train_set.scale = scale(train_set.num,center=  TRUE,scale = TRUE)
 
