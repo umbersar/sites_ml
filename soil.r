@@ -282,7 +282,7 @@ error <- mean(as.factor(train_set$Str_h_texture)!=pred)
 
 
 
-#neuro network
+#neuro network cannot run within a specific time
 #We can us neuralnet() to train a NN model. Also, the train() function from caret can help us tune parameters.
 #We can plot the result to see which set of parameters is fit our data the best.
 
