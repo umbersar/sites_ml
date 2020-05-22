@@ -241,7 +241,7 @@ choose the CP with lowest xerror
 ```{r}
 cartstartTime <- Sys.time()
 
-fit.pruned = prune(cartFit, cp = 0.00020393)
+fit.pruned = prune(cartFit, cp = 0.00021967)
 
 cartPrediction <- predict(fit.pruned, test_set, type = "vector")
 
@@ -350,7 +350,7 @@ cat("Model ", which.min(perf), " is lowest loss: ", min(perf), sep = "")
 print(grid_search[which.min(perf), ])
 ```
 
-Algorithms score is around 0.38 and computational time is:
+Algorithms score is around 0.3 and computational time is:
 ```{r}
 lgbtaketime <- lstoptime - lstarttime
 cat("The algorithms takes ", lgbtaketime, "seconds")

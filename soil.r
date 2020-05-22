@@ -130,7 +130,6 @@ print(featureSoilTable)
 summary(train_set)
 #train_set.scale = scale(train_set.num,center=  TRUE,scale = TRUE)
 
-# test score around 63%
 
 # Find the best model with the best cost parameter via 10-fold cross-validations
 
@@ -139,7 +138,7 @@ summary(train_set)
 tryTypes=c(0:7)
 tryCosts=c(1000,1,0.001)
 bestCost=NA
-bestAcc=0.6290723
+bestAcc=0.2
 bestType=NA
 
 for(ty in tryTypes){
@@ -156,7 +155,10 @@ for(ty in tryTypes){
 
 }
 
-#svm classifier
+# svm classifier The train score of svm algorithm is  0.32799 
+# The test score of svm algorithm is  0.3019961
+# the running time of svm is approximately 40.66578 seconds
+
 svmClassifier <- LiblineaR(data = train_set[,-1],target = train_set[,c("Str_h_texture")],bias=1,cost = 1000)
 svmPredictTrain <- predict(svmClassifier,train_set[,-1],proba=TRUE,decisionValues=TRUE)
 svmPredictTrainTable <- table(svmPredictTrain$predictions,train_set[,c("Str_h_texture")])
@@ -179,9 +181,10 @@ sumElementinTable <- function(a,c,r){
   return(sum)
 }
 
-
 svmPredictTestScore <- sumElementinTable(svmPredictTestTable,svmTestcol,svmTestrow)/sum(svmPredictTestTable)
 svmPredictTrainScore <- sumElementinTable(svmPredictTrainTable,svmTraincol,svmTrainrow)/sum(svmPredictTrainTable)
+
+
 
 #cannot run the below algorithms since it cannot allocate vector of size 16.5GB
 #random forest is bad for sparse data which can be found in https://stats.stackexchange.com/questions/28828/is-there-a-random-forest-implementation-that-works-well-with-very-sparse-data
@@ -198,7 +201,11 @@ svmPredictTrainScore <- sumElementinTable(svmPredictTrainTable,svmTraincol,svmTr
 # y <- train_set$Str_h_texture
 # bestMtry <- tuneRF(x,y, stepFactor = 1.15, improve = 1e-5, ntree = 1000)
 
-#Classification with CART model
+
+
+# the time of cart 0.320148 seconds
+# the score of cart model 0.02476596
+# Classification with CART model
 cartFit <- rpart(Str_h_texture ~ .,data = train_set,control = rpart.control(cp = 0.0001))
 #get cp value
 printcp(cartFit)
@@ -239,6 +246,8 @@ cartscore <- sumElementinTable(cartTable,cartrow,cartcol)/sum(cartTable)
 # plot()
 
 #NaiveBayes classification
+#NaiveBayes takes 4.305502 seconds
+# the score is 0.02
 # The formula is traditional Y~X1+X2+бн+Xn
 # The data is typically a dataframe of numeric or factor variables.
 # laplace provides a smoothing effect (as discussed below)
@@ -260,14 +269,20 @@ nbTrainTablerow <- rownames(nbTrainTable)
 nbTrainTablecol <- colnames(nbTrainTable)
 nbTrainTablescore <- sumElementinTable(nbTrainTable,nbTrainTablerow,nbTrainTablecol)
 
-#fastnaivebayes 
+
+
+
+#fastnaivebayes takes 27.94227 seconds
+# error is 0.9383002
 dist <- fnb.detect_distribution(train_set.num_X)
 gauss <- fnb.gaussian(train_set.num_X[,dist$gaussian], as.factor(train_set$Str_h_texture),sparse = TRUE,check = FALSE)
 pred <- predict(gauss, train_set.num_X[,dist$gaussian])
 error <- mean(as.factor(train_set$Str_h_texture)!=pred)
 
-#neuro network
 
+
+
+#neuro network
 #We can us neuralnet() to train a NN model. Also, the train() function from caret can help us tune parameters.
 #We can plot the result to see which set of parameters is fit our data the best.
 
@@ -307,7 +322,8 @@ p1 <- p1 * (maxStr_h_texture-minStr_h_texture)
 p1 <- round(p1,0)
 nntable<-  table(train_set$Str_h_texture,p1)
 
-#mlp  (similar to neural network)
+#mlp  (similar to neural network) takes 58.56548 seconds
+#The score of MLP is  0.02635098 
 model <- mlp(train_set.norm.X, train_set.norm$Str_h_texture, size=5, learnFuncParams=c(0.1), 
              maxit=50, inputsTest=test_set.norm.X, targetsTest=test_set.norm$Str_h_texture)
 
@@ -321,7 +337,10 @@ mlprow <-rownames(mlptable)
 mlpcol <- colnames(mlptable)
 mlpscore <- sumElementinTable(mlptable,mlprow,mlpcol)/sum(mlptable)
 
+
+
 #Classification with the Adabag Boosting in R
+#XGBOOSt cannot run within a specific time
 adaClassifer <- boosting(as.factor(Str_h_texture) ~ .,data = train_set,boos = T,mfinal = 10)
 adapred  <- predict(adaClassifer,test_set)
 adaConfusionM <- adapred$confusion
@@ -358,7 +377,9 @@ xgb.fit=xgb.train(
 
 xgb.fit
 
-#lightGBM
+#lightGBM 
+# score is 0.2914 the overhead of testing was 0.046899 seconds.
+
 ltrain = lgb.Dataset(data = as.matrix(train_set.num_X),label = train_set$Str_h_texture, free_raw_data = FALSE)
 params <- list(objective="regression", metric="l2")
 model <- lgb.cv(params, 
@@ -368,9 +389,9 @@ model <- lgb.cv(params,
                 min_data=1, 
                 learning_rate=1, 
                 early_stopping_rounds=10,
-                Depth = 8,
-                lambda_l1 = 10,
-                lambda_l2 = 10
+                Depth = 5,
+                lambda_l1 = 12,
+                lambda_l2 = 13
 )
 
 ltest = lgb.Dataset.create.valid(ltrain , as.matrix(test_set.num_X), label = test_set$Str_h_texture)
@@ -407,7 +428,9 @@ cat("Model ", which.min(perf), " is lowest loss: ", min(perf), sep = "")
 print(grid_search[which.min(perf), ])
 
 
-#catboost
+
+#catboost takes 4.908873 seconds
+#The algorithm scores 0.02403448
 fit_params <- list(l2_leaf_reg = 0.001,
                    depth=6,
                    learning_rate = 0.1,
@@ -420,12 +443,13 @@ pool = catboost.load_pool(as.matrix(train_set.num_X), label = as.integer(train_s
 model <- catboost.train(pool, params = fit_params)
 
 
-#get the prediction
+
+
 catprediction <- catboost.predict(model, 
                                   pool, 
                                   prediction_type = 'RawFormulaVal')
 
-#round the prediction
+
 catprediction <- round(catprediction,0)
 
 catTable <- table(train_set$Str_h_texture,catprediction)
