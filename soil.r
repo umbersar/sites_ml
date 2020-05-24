@@ -59,6 +59,9 @@ library(caret)
 #mlp
 library(RSNNS)
 
+#ELM
+library(elmNNRcpp)
+
 featureSoilTable <- read.csv(file = "featureTable.csv",stringsAsFactors=FALSE)
 #normalize the labr_value name
 #preprocessing the data
@@ -98,6 +101,7 @@ for (l in invaliddata$label){
 
 }
 
+#numerize each column except the first column
 validsoilTexture$Str_h_texture <- as.numeric(as.factor(validsoilTexture$Str_h_texture))
 validsoilTexture[,-1] <- apply(apply(validsoilTexture[,-1], 2, as.factor), 2, as.numeric)
 validsoilTexture[,-1]<- (apply(validsoilTexture[,-1],2,normalize))
@@ -226,7 +230,7 @@ cartscore <- sumElementinTable(cartTable,cartrow,cartcol)/sum(cartTable)
 #classification with KNN model
 
 #using knn now having some problem with knn
-# knnClassifer <- knn(train_set,test_set,cl = train_set$Str_h_texture,k=9)
+knnClassifer <- knn(train_set,test_set,cl = train_set$Str_h_texture,k=9)
 # 
 # Kn_test <- table(test_set$Str_h_texture,knnClassifer)
 # 
@@ -277,8 +281,9 @@ nbTrainTablescore <- sumElementinTable(nbTrainTable,nbTrainTablerow,nbTrainTable
 dist <- fnb.detect_distribution(train_set.num_X)
 gauss <- fnb.gaussian(train_set.num_X[,dist$gaussian], as.factor(train_set$Str_h_texture),sparse = TRUE,check = FALSE)
 pred <- predict(gauss, train_set.num_X[,dist$gaussian])
+tablefnb <- table(as.factor(train_set$Str_h_texture),pred)
 error <- mean(as.factor(train_set$Str_h_texture)!=pred)
-
+score <- (1-error)
 
 
 
@@ -443,8 +448,6 @@ pool = catboost.load_pool(as.matrix(train_set.num_X), label = as.integer(train_s
 model <- catboost.train(pool, params = fit_params)
 
 
-
-
 catprediction <- catboost.predict(model, 
                                   pool, 
                                   prediction_type = 'RawFormulaVal')
@@ -458,5 +461,21 @@ catTablerow <- rownames(catTable)
 catTablecol <- colnames(catTable)
 catscore <- sumElementinTable(catTable,catTablerow,catTablecol)/sum(catTable)
 
+#ELM algorithms, score is 0.1881997, time is 1.03049s
+library(sampling)
+#One-hot encoding of training data target variable (0,1)
 
+train_set.oneHot_Y <- onehot_encode(train_set$Str_h_texture-1)
+
+elmmodel = elm_train(as.matrix(train_set[,-1]), train_set.oneHot_Y, nhid = 19, actfun = 'relu')
+
+elmpredict_y = elm_predict(elmmodel, as.matrix(test_set[,-1]),normalize = TRUE)
+
+elmpredict_y = max.col(elmpredict_y, ties.method = "random")
+
+elmscore <- table(elmpredict_y,test_set$Str_h_texture)
+
+elmTrainTablerow <- rownames(elmscore)
+elmTrainTablecol <- colnames(elmscore)
+elmTrainTablescore <- sumElementinTable(elmscore,elmTrainTablerow,elmTrainTablecol)/sum(elmscore)
 

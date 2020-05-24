@@ -507,6 +507,39 @@ mlptakentime <- mlpendtime - mlpstarttime
 
 ```
 
+#ELM algorithms
+```{r}
+library(sampling)
+library(elmNNRcpp)
+
+#One-hot encoding of training data target variable (0,1)
+
+train_set.oneHot_Y <- onehot_encode(train_set$Str_h_texture-1)
+
+elmstarttime<-Sys.time()
+
+elmmodel = elm_train(as.matrix(train_set[,-1]), train_set.oneHot_Y, nhid = 19, actfun = 'relu')
+
+elmpredict_y = elm_predict(elmmodel, as.matrix(test_set[,-1]),normalize = TRUE)
+
+elmendtime <- Sys.time()
+
+elmpredict_y = max.col(elmpredict_y, ties.method = "random")
+elmscore <- table(elmpredict_y,test_set$Str_h_texture)
+
+```
+
+#score and execution time:
+```{r}
+
+elmTrainTablerow <- rownames(elmscore)
+elmTrainTablecol <- colnames(elmscore)
+elmTrainTablescore <- sumElementinTable(elmscore,elmTrainTablerow,elmTrainTablecol)/sum(elmscore)
+
+cat("The accuracy score is: ",elmTrainTablescore)
+
+cat("The execution time is ", elmendtime - elmstarttime)
+```
 # Algorithms that cannot run in a specific time
 
 # neural network
