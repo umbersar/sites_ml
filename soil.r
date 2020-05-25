@@ -38,6 +38,23 @@ library(adabag)
 
 #Stochastic Gradient Descent (SGD) Method Learning Function
 library(gradDescent)
+
+################################################################################
+#Notice that for R4.0.0 to install lightgbm may lead to some problem           #
+#Here is the solution to intall lightgbm in R4.0.0 environment                 #
+                                                                               #
+#git clone https://github.com/jameslamb/LightGBM.git                           #
+#cd LightGBM                                                                   #
+#git fetch origin fix/r-4.0                                                    #
+#git checkout fix/r-4.0                                                        #
+                                                                               #
+# install LightGBM                                                             #
+#Rscript build_r.R                                                             #
+                                                                               #
+# test that it worked                                                          #
+#cd R-package/tests                                                            #
+#Rscript testthat.R                                                            #
+################################################################################
 library(lightgbm)
 #https://www.kaggle.com/c/amazon-employee-access-challenge/discussion/5128#38925
 
@@ -479,3 +496,8 @@ elmTrainTablerow <- rownames(elmscore)
 elmTrainTablecol <- colnames(elmscore)
 elmTrainTablescore <- sumElementinTable(elmscore,elmTrainTablerow,elmTrainTablecol)/sum(elmscore)
 
+#####################################################################################################
+#In my opinion, I guess that there are several reasons lead to low prediction score                 #
+#The first reason is that the pivot table is too sparse to be predicted, which means that the data  #
+#contains lots of sparse data. Furthermore, the data may contain some unavoidable noise which hard to#
+#predict the soil samples                                                                           #
